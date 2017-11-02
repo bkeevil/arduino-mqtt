@@ -24,6 +24,9 @@ const int  mqtt_port      = 1883;
 char* mqtt_clientid  = "ESP32";
 char* mqtt_username  = NULL;
 char* mqtt_password  = NULL;
+byte c=0,d=0;
+long a0=0,a1=100,a2=1000;
+char buffer[6];
  
 void setup() {
   Serial.begin(115200);
@@ -39,7 +42,7 @@ void setup() {
 
 void loop() {
   byte errorCode;
-  
+
   if (client.available() > 1) {
     Serial.print(client.available()); Serial.println(" bytes available");
     errorCode = mqtt.dataAvailable();
@@ -47,6 +50,31 @@ void loop() {
       Serial.print("Error code "); Serial.println(errorCode);
     }
   } else {
+    if (mqtt.isConnected) {
+      c++;
+      d++;
+      if (c==10) {
+        errorCode = mqtt.intervalTimer();
+        if (errorCode != 0) {
+          Serial.print("intervalTimer Error "); Serial.println(errorCode);
+        }
+        c = 0;
+      }
+      if (d==11) {
+        d=0;
+        if (!mqtt.publish("ESP32/A0",itoa(a0,buffer,10),qtAT_MOST_ONCE,true,false)) {
+          Serial.println("failed");
+        }
+        if (!mqtt.publish("ESP32/A1",itoa(a1,buffer,10),qtAT_LEAST_ONCE,true,false)) {
+          Serial.println("failed");
+        }
+        if (!mqtt.publish("ESP32/A2",itoa(a2,buffer,10),qtEXACTLY_ONCE,true,false)) {
+          Serial.println("failed");
+        }
+        a0++; a1++; a2++;
+      }
+    }
+    client.flush();  
     delay(100);
   }
 }
@@ -111,7 +139,7 @@ void WiFiEvent(WiFiEvent_t event)
 
 void MyMQTTClient::initSession() {
   Serial.println("Initializing Subscriptions");
-  mqtt.subscribe(1,"System/Time/Minute");  
+  mqtt.subscribe(1,"System/Time/Minute",qtEXACTLY_ONCE);  
   MQTTClient::initSession();
 }
 
