@@ -751,7 +751,7 @@ bool MQTTClient::publish(char *topic, char *data, byte qos, bool retain, bool du
   bool result;
 
   
-  if ((topic != NULL) && (data != NULL) && (strlen(topic)>0) && (strlen(data)>0) && (qos<3)) {
+  if ((topic != NULL) && (strlen(topic)>0) && (qos<3)) {
 
     //Serial.print("sendPUBLISH topic="); Serial.print(topic); Serial.print(" data="); Serial.print(data); Serial.print(" qos="); Serial.println(qos);
     flags |= (qos << 1);
@@ -782,7 +782,7 @@ bool MQTTClient::publish(char *topic, char *data, byte qos, bool retain, bool du
       result = writeWord(packetid);
     }
 
-    if (result) {
+    if (result && (data != NULL)) {
       result = writeData(data,strlen(data));
     }
     
