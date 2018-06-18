@@ -17,9 +17,9 @@ SSD1306  display(0x3c, 5, 4);
 WiFiClient client;
 MyMQTTClient mqtt;
 
-const char wifi_ssid[]     = "Prognosti";
-const char wifi_password[] = "SunnyEva1255";
-const char mqtt_server[]   = "192.168.1.23";
+const char wifi_ssid[]     = "SSID";
+const char wifi_password[] = "Password";
+const char mqtt_server[]   = "192.168.1.2";
 const int  mqtt_port      = 1883;
 char* mqtt_clientid  = "ESP32";
 char* mqtt_username  = NULL;
