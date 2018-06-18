@@ -5,7 +5,7 @@ A lightweight MQTT client library for arduino devices that supports all QoS leve
 
 The code is complete but requires testing.
 
-The Example program probably won't run but it shows how to use the library.
+The Example program is for an ESP32 device with an OLED. It probably won't run but it shows how to use the library.
 
 ## Change Log
 
