@@ -7,6 +7,12 @@ The code is stable.
 
 The Example program is for an ESP32 device with an OLED. It probably won't run but it shows how to use the library.
 
+## Useage
+
+This is not set up to be a library, just add mqtt.h as a tab in your Arduino IDE project. 
+
+You create a subclass of MQTTClient in your main application and override the virtual methods.
+
 ## Change Log
 
 Oct, 2017 CONNECT, CONNACK, SUBSCRIBE, SUBACK and PUBLISH are working.
