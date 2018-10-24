@@ -75,7 +75,7 @@ struct WillMessage {
   char data[MQTT_MAX_DATA_LEN+1];
   bool enabled;
   bool retain;
-  byte QoS;  
+  byte qos;  
 };
 
 struct PublishMessage {
