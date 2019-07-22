@@ -756,7 +756,7 @@ bool MQTTClient::publish(char *topic, char *data, byte qos, bool retain, bool du
     //Serial.print("sendPUBLISH topic="); Serial.print(topic); Serial.print(" data="); Serial.print(data); Serial.print(" qos="); Serial.println(qos);
     flags |= (qos << 1);
     if (duplicate) {
-      flags != 8;
+      flags |= 8;
     } 
     if (retain) {
       flags |= 1;
