@@ -745,7 +745,7 @@ byte MQTTClient::recvUNSUBACK() {
 }
 
 bool MQTTClient::publish(char *topic, char *data, byte qos, bool retain, bool duplicate) {
-  byte flags;
+  byte flags = 0;
   word packetid;
   long remainingLength;
   bool result;
