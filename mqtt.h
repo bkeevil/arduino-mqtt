@@ -359,7 +359,7 @@ bool MQTTClient::connect(char *clientID, char *username, char *password, bool cl
   if (willMessage.retain) {
     flags |= 32;
   }
-  flags |= (willMessage.QoS << 3);
+  flags |= (willMessage.qos << 3);
   if (willMessage.enabled) {
     flags |= 4;
     rl += strlen(willMessage.topic) + 2 + strlen(willMessage.data) + 2;
