@@ -18,6 +18,14 @@ This is not set up to be a library, I add the code from mqtt.h as a tab in an Ar
 
 Create a subclass of MQTTClient in your main application and override the virtual methods. See the example code.
 
+If you are trying to run this on an Arduino Nano or Uno you will probably need to reduce the amount of memory used by lowering the values of:
+
+```
+#define MQTT_MAX_TOPIC_LEN                       64 // Bytes
+#define MQTT_MAX_DATA_LEN                        64 // Bytes
+#define MQTT_PACKET_QUEUE_SIZE                    8
+```
+
 ## Change Log
 
 Oct, 2017 CONNECT, CONNACK, SUBSCRIBE, SUBACK and PUBLISH are working.
