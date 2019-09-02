@@ -1,30 +1,17 @@
 #ifndef MQTT_H
 #define MQTT_H
 
-#if ARDUINO >= 100
-  #include "Arduino.h"
-#else
-  #include "WProgram.h"
-  #include "pins_arduino.h"
-  #include "WConstants.h"
-#endif
-
-/* Users of this library can enable the MQTT_LOW_MEMORY flag if they get out of memory errors */
-
-//#define MQTT_LOW_MEMORY
+#include <Arduino.h>
+#include <Printable.h>
+#include <Print.h>
+#include <Serial.h>
 
 #define MQTT_DEFAULT_PING_INTERVAL               30 // Number of seconds between pings
 #define MQTT_DEFAULT_PING_RETRY_INTERVAL          6 // Frequency of pings in seconds after a failed ping response.
 #define MQTT_DEFAULT_KEEPALIVE                   60 // Number of seconds of inactivity before disconnect
-#ifdef MQTT_LOW_MEMORY
-#define MQTT_MAX_TOPIC_LEN                       32 // Bytes
-#define MQTT_MAX_DATA_LEN                        64 // Bytes
-#define MQTT_PACKET_QUEUE_SIZE                    4
-#else
-#define MQTT_MAX_TOPIC_LEN                       64 // Bytes
-#define MQTT_MAX_DATA_LEN                        64 // Bytes
-#define MQTT_PACKET_QUEUE_SIZE                    8
-#endif
+//#define MQTT_MAX_TOPIC_LEN                       64 // Bytes
+//#define MQTT_MAX_DATA_LEN                        64 // Bytes
+//#define MQTT_PACKET_QUEUE_SIZE                    8
 #define MQTT_MIN_PACKETID                       256 // The first 256 packet IDs are reserved for subscribe/unsubscribe packet ids
 #define MQTT_MAX_PACKETID                     65535
 #define MQTT_PACKET_TIMEOUT                       3 // Number of seconds before a packet is resent
@@ -90,7 +77,39 @@ enum qos_t {
   qtAT_LEAST_ONCE,
   qtEXACTLY_ONCE,
   qtMAX_VALUE = qtEXACTLY_ONCE
+};
+
+class MQTTMessage: Printable, Print {
+  private: 
+    size_t data_size;
+    size_t data_pos;
+  public:
+    String topic;
+    qos_t qos;
+    bool retain;
+    uint8_t data[];
+    size_t data_len;
+    // 
+    MQTTMessage(String topic, qos_t qos = qtAT_LEAST_ONCE, bool retain = false, uint8_t data[] = NULL, uint8_t data_len = 0) : topic(topic),qos(qos),retain(retain),data(data),data_len(data_len),data_size(data_len),data_pos(data_len);
+    virtual size_t printTo(Print& p);
+    virtual int read();
+    virtual int peek();
+    virtual size_t write(uint8_t b);
+    virtual size_t write(const uint8_t *buffer, size_t size);
+    virtual int available() { return data_len - data_pos; }
+    virtual int availableForWrite() { return data_size - data_pos; } 
+    void reserve(size_t size);
+    void pack();
+   
 }
+
+struct queuedMessage_t {
+  word packetid;
+  byte timeout;
+  byte retries;
+  bool duplicate;
+  mqttMessage_t *message;
+};
 
 struct willMessage_t {
   String topic;
@@ -102,23 +121,13 @@ struct willMessage_t {
 
 typedef willMessage_t connectMessage_t;
 
-struct publishMessage_t {
-  word packetid;
-  byte timeout;
-  byte retries;
-  byte qos;
-  bool retain;
-  bool duplicate;
-  String topic;
-  String data;
-};
-
 struct packetMessage_t {
   word packetid;
   byte timeout;
   byte retries;
 };
 
+class MQTT
 class MQTTClient {
   private:
     publishMessage_t outgoingPUBLISHQueue[MQTT_PACKET_QUEUE_SIZE];

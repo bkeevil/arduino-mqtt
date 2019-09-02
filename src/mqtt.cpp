@@ -1,5 +1,114 @@
 #include "mqtt.h"
 
+/**
+ * @brief Prints the data buffer to any object descended from the Print class 
+ * 
+ * @param p The object to print to
+ * @return size_t The number of bytes printed
+ */
+size_t MQTTMessage::printTo(Print& p) {
+  size_t pos;
+  for (pos=0;pos<_data_len;pos++) { 
+    p.print(_data[pos]);
+  }
+  return _data_len;
+}
+
+/**
+ * @brief Pre-allocate bytes in the data buffer to prevent reallocation and fragmentation
+ * 
+ * @param size Number of bytes to reserve
+ */
+void MQTTMessage::reserve(size_t size) {
+if (data_size == 0) {
+    data = (uint8_t *) malloc(size);
+  } else 
+    data = (uint8_t *) realloc(data,size);
+  }  
+  data_size = size;
+}
+
+/**
+ * @brief Call after writing the data buffer is done to dispose of any extra reserved memory
+ * 
+ */
+void MQTTMessage::pack() {
+  if (data_size > data_len) {
+    if (data_len == 0) {
+      dispose(data);
+      data = NULL;
+    } else {
+      data = (uint8_t *) realloc(data,data_len);
+    }
+    data_size = data_len;
+  }
+}
+
+/**
+ * @brief Reads a byte from the data buffer and advance to the next character
+ * 
+ * @return int The byte read, or -1 if there is no more data
+ */
+int MQTTMessage::read() {
+  if (data_pos < data_len) {
+    return data[data_pos++];
+  } else {
+    return -1;
+  }
+}
+
+/**
+ * @brief Read a byte from the data buffer without advancing to the next character
+ * 
+ * @return int The byte read, or -1 if there is no more data
+ */
+int MQTTMessage::peek() {
+  if (data_pos < data_len) {
+    return data[data_pos];
+  } else {
+    return -1;
+  }
+}
+
+/**
+ * @brief Writes a byte to the end of the data buffer
+ * 
+ * @param c The byte to be written
+ * @return size_t The number of bytes written
+ */
+size_t MQTTMessage::write(uint8_t c) {
+  data_len++;
+  if (data_size == 0) {
+    data = (uint8_t *) malloc(MQTT_MESSAGE_ALLOC_BLOCK_SIZE);
+  } else if (data_len >= data_size) {
+    data_size += MQTT_MESSAGE_ALLOC_BLOCK_SIZE;
+    data = (uint8_t *) realloc(data,data_size);
+  }
+  data[data_pos++] = c; 
+  return 1;
+}
+
+/**
+ * @brief Writes a block of data to the data buffer
+ * 
+ * @param buffer The data to be written
+ * @param size The size of the data to be written
+ * @return size_t The number of bytes actually written to the buffer
+ */
+size_t MQTTMessage::write(const uint8_t *buffer, size_t size) {
+  data_len += size;
+   if (data_size == 0) {
+    data = (uint8_t *) malloc(data_len);
+    data_size = data_len;
+  } else if (data_len >= data_size) {
+    data_size = data_len;
+    data = (uint8_t *) realloc(data,data_size);
+  }
+  return size;
+}
+
+/* MQTT Client */
+
 bool MQTTClient::readByte(byte* b) {
   if (stream->available() == 0) {
     delay(100);
