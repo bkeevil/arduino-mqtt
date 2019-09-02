@@ -12,16 +12,15 @@ This is not the kind of Arduino library you install from Library Manager.
 
 ## Version 2 (Development Branch) Status
 
-I wound up using this code mostly on ESP8266 and ESP32 with higher memory requirements and better handling of dynamically allocated memory so version 2 is being redesigned. The code may be broken. I'm also in the process of switching my projects over to PlatformIO and want this library to be installable from the PIO library manager.
+I wound up using this code mostly on ESP8266 and ESP32 with higher memory requirements and better handling of dynamically allocated memory so version 2 is being redesigned. The code may be broken.
 
 Goals for Version 2:
 
-1. A proper library that can be installed from the Arduino Library Manager
-2. Develop some working example programs
-3. Convert the project to use the String class rather than C style strings for topics
-4. Use dynamically allocated memory for queues rather than statically allocated arrays
-5. Support for PlatformIO Library Manager
-6. Support for FreeRTOS
+1. A proper library that can be installed from the Arduino Library Manager and conforms to the Ardunio Style Guide
+2. Make better use of the Arduino core byte streaming library
+3. Develop some working example programs
+4. Convert the project to use the String class rather than C style strings for data and topics (to reduce memory use).
+5. Use dynamically allocated memory for queues rather than statically allocated arrays (to reduce memory use).
 
 ## Useage
 
