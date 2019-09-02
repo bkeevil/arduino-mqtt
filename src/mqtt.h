@@ -1,10 +1,9 @@
 #ifndef MQTT_H
 #define MQTT_H
 
-#include <Arduino.h>
-#include <Printable.h>
-#include <Print.h>
-#include <Serial.h>
+#include "Arduino.h"
+#include "Printable.h"
+#include "Print.h"
 
 #define MQTT_DEFAULT_PING_INTERVAL               30 // Number of seconds between pings
 #define MQTT_DEFAULT_PING_RETRY_INTERVAL          6 // Frequency of pings in seconds after a failed ping response.
