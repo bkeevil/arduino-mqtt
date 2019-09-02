@@ -1,0 +1,36 @@
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+ 
+qos_t KEYWORD1
+willMessage_t KEYWORD1
+connectMessage_t KEYWORD1
+publishMessage_t KEYWORD1
+packetMessage_t KEYWORD1
+MQTTClient KEYWORD1
+ 
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+ 
+connected    KEYWORD2
+initSession KEYWORD2
+subscribed KEYWORD2
+unsubscribed KEYWORD2
+receiveMessage KEYWORD2
+connect KEYWORD2
+disconnect KEYWORD2
+disconnected KEYWORD2
+subscribe KEYWORD2
+unsubscribe KEYWORD2
+publish KEYWORD2
+dataAvailable KEYWORD2
+intervalTimer KEYWORD2
+ 
+#######################################
+# Constants (LITERAL1)
+#######################################
+
+qtAT_MOST_ONCE LITERAL1
+qtAT_LEAST_ONCE LITERAL1
+qtEXACTLY_ONCE LITERAL1
