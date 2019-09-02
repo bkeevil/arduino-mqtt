@@ -3,11 +3,6 @@
 #######################################
  
 qos_t KEYWORD1
-willMessage_t KEYWORD1
-connectMessage_t KEYWORD1
-publishMessage_t KEYWORD1
-packetMessage_t KEYWORD1
-MQTTClient KEYWORD1
  
 #######################################
 # Methods and Functions (KEYWORD2)
@@ -26,7 +21,17 @@ unsubscribe KEYWORD2
 publish KEYWORD2
 dataAvailable KEYWORD2
 intervalTimer KEYWORD2
- 
+
+#######################################
+# Structures (KEYWORD3)
+#######################################
+
+willMessage_t KEYWORD3
+connectMessage_t KEYWORD3
+publishMessage_t KEYWORD3
+packetMessage_t KEYWORD3
+MQTTClient KEYWORD3 
+
 #######################################
 # Constants (LITERAL1)
 #######################################
