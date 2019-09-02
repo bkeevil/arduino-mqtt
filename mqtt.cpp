@@ -395,7 +395,7 @@ byte MQTTClient::pingInterval() {
   return MQTT_ERROR_NONE;
 }
 
-bool MQTTClient::addToOutgoingQueue(word packetid, byte qos, bool retain, bool duplicate, char* topic, char* data) {
+bool MQTTClient::addToOutgoingQueue(word packetid, qos_t qos, bool retain, bool duplicate, char* topic, char* data) {
   if (outgoingPUBLISHQueueCount == MQTT_PACKET_QUEUE_SIZE) {
     //Serial.println("Error: outgoingPUBLISHQueue overflow");
     return false;
@@ -414,7 +414,7 @@ bool MQTTClient::addToOutgoingQueue(word packetid, byte qos, bool retain, bool d
   return true;
 }
 
-bool MQTTClient::addToOutgoingQueue(word packetid, byte qos, bool retain, bool duplicate, String topic, String data) {
+bool MQTTClient::addToOutgoingQueue(word packetid, qos_t qos, bool retain, bool duplicate, String topic, String data) {
   if (outgoingPUBLISHQueueCount == MQTT_PACKET_QUEUE_SIZE) {
     //Serial.println("Error: outgoingPUBLISHQueue overflow");
     return false;
@@ -433,7 +433,7 @@ bool MQTTClient::addToOutgoingQueue(word packetid, byte qos, bool retain, bool d
   return true;
 }
 
-bool MQTTClient::addToIncomingQueue(word packetid, byte qos, bool retain, bool duplicate, char* topic, char* data) {
+bool MQTTClient::addToIncomingQueue(word packetid, qos_t qos, bool retain, bool duplicate, char* topic, char* data) {
   if (incomingPUBLISHQueueCount == MQTT_PACKET_QUEUE_SIZE) {
     //Serial.println("Error: incomingPUBLISHQueue overflow");
     return false;
@@ -573,7 +573,7 @@ byte MQTTClient::intervalTimer() {
   }
 }
 
-bool MQTTClient::subscribe(word packetid, char *filter, byte qos) {
+bool MQTTClient::subscribe(word packetid, char *filter, qos_t qos) {
   bool result;
 
   if (filter != NULL) {
@@ -588,7 +588,7 @@ bool MQTTClient::subscribe(word packetid, char *filter, byte qos) {
   }
 }
 
-bool MQTTClient::subscribe(word packetid, String filter, byte qos) {
+bool MQTTClient::subscribe(word packetid, String filter, qos_t qos) {
   bool result;
 
   if (filter != NULL) {
@@ -660,14 +660,14 @@ byte MQTTClient::recvUNSUBACK() {
   }
 }
 
-bool MQTTClient::publish(char *topic, char *data, byte qos, bool retain, bool duplicate) {
+bool MQTTClient::publish(char *topic, char *data, qos_t qos, bool retain, bool duplicate) {
   byte flags = 0;
   word packetid;
   long remainingLength;
   bool result;
 
 
-  if ((topic != NULL) && (strlen(topic)>0) && (qos<3) && (isConnected)) {
+  if ((topic != NULL) && (strlen(topic)>0) && (qos<=qtMAX_VALUE) && (isConnected)) {
 
     //Serial.print("sendPUBLISH topic="); Serial.print(topic); Serial.print(" data="); Serial.print(data); Serial.print(" qos="); Serial.println(qos);
     flags |= (qos << 1);
@@ -711,7 +711,7 @@ bool MQTTClient::publish(char *topic, char *data, byte qos, bool retain, bool du
   } else return false;
 }
 
-bool MQTTClient::publish(String topic, String data, byte qos, bool retain, bool duplicate) {
+bool MQTTClient::publish(String topic, String data, qos_t qos, bool retain, bool duplicate) {
   byte flags = 0;
   word packetid;
   long remainingLength;

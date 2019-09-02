@@ -1,14 +1,30 @@
 #ifndef MQTT_H
 #define MQTT_H
 
-#include <Arduino.h>
+#if ARDUINO >= 100
+  #include "Arduino.h"
+#else
+  #include "WProgram.h"
+  #include "pins_arduino.h"
+  #include "WConstants.h"
+#endif
+
+/* Users of this library can enable the MQTT_LOW_MEMORY flag if they get out of memory errors */
+
+//#define MQTT_LOW_MEMORY
 
 #define MQTT_DEFAULT_PING_INTERVAL               30 // Number of seconds between pings
 #define MQTT_DEFAULT_PING_RETRY_INTERVAL          6 // Frequency of pings in seconds after a failed ping response.
 #define MQTT_DEFAULT_KEEPALIVE                   60 // Number of seconds of inactivity before disconnect
-#define MQTT_MAX_TOPIC_LEN                      128 // Bytes
-#define MQTT_MAX_DATA_LEN                       255 // Bytes
+#ifdef MQTT_LOW_MEMORY
+#define MQTT_MAX_TOPIC_LEN                       32 // Bytes
+#define MQTT_MAX_DATA_LEN                        64 // Bytes
+#define MQTT_PACKET_QUEUE_SIZE                    4
+#else
+#define MQTT_MAX_TOPIC_LEN                       64 // Bytes
+#define MQTT_MAX_DATA_LEN                        64 // Bytes
 #define MQTT_PACKET_QUEUE_SIZE                    8
+#endif
 #define MQTT_MIN_PACKETID                       256 // The first 256 packet IDs are reserved for subscribe/unsubscribe packet ids
 #define MQTT_MAX_PACKETID                     65535
 #define MQTT_PACKET_TIMEOUT                       3 // Number of seconds before a packet is resent
@@ -29,10 +45,6 @@
 #define ptPINGREQ                                12
 #define ptPINGRESP                               13
 #define ptDISCONNECT                             14
-
-#define qtAT_MOST_ONCE                            0
-#define qtAT_LEAST_ONCE                           1
-#define qtEXACTLY_ONCE                            2
 
 #define MQTT_CONNACK_SUCCESS                      0
 #define MQTT_CONNACK_UNACCEPTABLE_PROTOCOL        1
@@ -73,7 +85,14 @@
 
 #define MQTT_ERROR_UNKNOWN                      255
 
-struct WillMessage {
+enum qos_t {
+  qtAT_MOST_ONCE = 0,
+  qtAT_LEAST_ONCE,
+  qtEXACTLY_ONCE,
+  qtMAX_VALUE = qtEXACTLY_ONCE
+}
+
+struct willMessage_t {
   String topic;
   String data;
   bool enabled;
@@ -81,7 +100,9 @@ struct WillMessage {
   byte qos;
 };
 
-struct PublishMessage {
+typedef willMessage_t connectMessage_t;
+
+struct publishMessage_t {
   word packetid;
   byte timeout;
   byte retries;
@@ -92,7 +113,7 @@ struct PublishMessage {
   String data;
 };
 
-struct PacketMessage {
+struct packetMessage_t {
   word packetid;
   byte timeout;
   byte retries;
@@ -100,9 +121,9 @@ struct PacketMessage {
 
 class MQTTClient {
   private:
-    PublishMessage outgoingPUBLISHQueue[MQTT_PACKET_QUEUE_SIZE];
-    PublishMessage  incomingPUBLISHQueue[MQTT_PACKET_QUEUE_SIZE];
-    PacketMessage  PUBRELQueue[MQTT_PACKET_QUEUE_SIZE];
+    publishMessage_t outgoingPUBLISHQueue[MQTT_PACKET_QUEUE_SIZE];
+    publishMessage_t incomingPUBLISHQueue[MQTT_PACKET_QUEUE_SIZE];
+    packetMessage_t  PUBRELQueue[MQTT_PACKET_QUEUE_SIZE];
     byte incomingPUBLISHQueueCount;
     byte outgoingPUBLISHQueueCount;
     byte PUBRELQueueCount;
@@ -116,8 +137,8 @@ class MQTTClient {
     bool writeWord(const word value);
     bool readRemainingLength(long *value);
     bool writeRemainingLength(const long value);
-    bool readData(char* data, const word len);
-    bool writeData(char* data, const word len);
+    bool readData(char *data, const word len);
+    bool writeData(char *data, const word len);
     bool writeData(String data);
     bool writeStr(char* str);
     bool writeStr(String str);
@@ -151,7 +172,8 @@ class MQTTClient {
     bool sendPUBCOMP(word packetid);
   public:
     Stream* stream;
-    WillMessage willMessage;
+    willMessage_t willMessage;
+    connectMessage_t connectMessage;
     bool isConnected;
     // Events
     virtual void connected() {};
@@ -163,11 +185,13 @@ class MQTTClient {
     bool connect(String clientID, String username, String password, bool cleanSession = false, word keepAlive = MQTT_DEFAULT_KEEPALIVE);
     bool disconnect();
     void disconnected();
-    bool subscribe(word packetid, char *filter, byte qos = qtAT_MOST_ONCE);
-    bool subscribe(word packetid, String filter, byte qos = qtAT_MOST_ONCE);
+    bool subscribe(word packetid, char *filter, qos_t qos = qtAT_MOST_ONCE);
+    bool subscribe(word packetid, String filter, qos_t qos = qtAT_MOST_ONCE);
     bool unsubscribe(word packetid, char *filter);
-    bool publish(char *topic, char *data, byte qos = qtAT_MOST_ONCE, bool retain=false, bool duplicate=false);
-    bool publish(String topic, String data, byte qos = qtAT_MOST_ONCE, bool retain=false, bool duplicate=false);
+    bool publish(char *topic, char *data, qos_t qos = qtAT_MOST_ONCE, bool retain=false, bool duplicate=false);
+    bool publish(char *topic, uint8_t *data, uint8_t data_len, qos_t qos = qtAT_MOST_ONCE, bool retain=false, bool duplicate = false); 
+    bool publish(String topic, String data, qos_t qos = qtAT_MOST_ONCE, bool retain=false, bool duplicate=false);
+    
     byte dataAvailable(); // Needs to be called whenever there is data available
     byte intervalTimer(); // Needs to be called by program every second
 };
