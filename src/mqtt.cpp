@@ -107,45 +107,59 @@ size_t MQTTMessage::write(const uint8_t *buffer, size_t size) {
   return size;
 }
 
-/* MQTT Client */
+/* MQTT Message Queue */
 
-bool MQTTClient::readByte(byte* b) {
-  if (stream->available() == 0) {
-    delay(100);
-  }
-  if (stream->available() > 0) {
-    short s = stream->read();
-    if (s == -1) {
-      return false;
-    } else {
-      *b = s;
-      return true;
-    }
-  } else {
-    return false;
+void MQTTMessageQueue::clear() {
+  queuedMessage_t* ptr = first;
+  while (first != null) {
+    ptr = first;
+    first = first->next;
+    count--;
+    if (ptr->message != null)
+      dispose(ptr->message);
+    free(ptr);
   }
 }
 
-bool MQTTClient::writeByte(const byte b) {
-  if (stream->write(b) == 0) {
-    stream->flush();
-    return (stream->write(b) == 1);
+void MQTTMessageQueue::push(queuedMessage_t *qm) {
+  if (last != null) {
+    last->next = qm;
+    qm->next = null;
+    last = qm;
   } else {
-    return true;
+    first = qm;
+    last = qm;
+    qm->next = null;
+  }
+  count++;
+}
+
+queuedMessage_t MQTTMessageQueue::pop() {
+  queuedMessage_t* ptr;
+  if (first != null) {
+    ptr = first;
+    first = first->next;
+    count--;
+    return ptr;
+  } else {
+    return null;
   }
 }
 
-bool MQTTClient::readRemainingLength(long* value) {
+/* MQTTBase */
+
+/** @brief  Reads the remaining length field of an MQTT packet 
+ *  @param  value Receives the remaining length
+ *  @return True if successful, false otherwise
+*/
+bool MQTTBase::readRemainingLength(long* value) {
   long multiplier = 1;
   byte encodedByte;
 
-  //Serial.print("value="); Serial.println(*value);
   *value = 0;
   do {
-    if (readByte(&encodedByte)) {
-      //Serial.print("encodedByte="); Serial.println(encodedByte);
+    if (stream.read(encodedByte) == 1) {
       *value += (encodedByte & 127) * multiplier;
-      //Serial.print("value="); Serial.println(*value);
       multiplier *= 128;
       if (multiplier > 2097152) {
         return false;
@@ -157,7 +171,10 @@ bool MQTTClient::readRemainingLength(long* value) {
   return true;
 }
 
-bool MQTTClient::writeRemainingLength(const long value) {
+/** @brief  Writes the remaining length field of an MQTT packet
+ *  @param  value The remaining length to write
+ *  @return True if successful, false otherwise */
+bool MQTTBase::writeRemainingLength(const long value) {
   byte encodedByte;
   long lvalue;
 
@@ -168,18 +185,19 @@ bool MQTTClient::writeRemainingLength(const long value) {
     if (lvalue > 0) {
       encodedByte |= 128;
     }
-    if (!writeByte(encodedByte)) {
+    if (stream.write(encodedByte) != 1) {
       return false;
     }
   } while (lvalue > 0);
   return true;
 }
 
-bool MQTTClient::readWord(word *value) {
-  byte b;
-  if (readByte(&b)) {
+/** @brief  Reads a word from the stream in big endian order */
+bool MQTTBase::readWord(uint16_t *value) {
+  uint8_t b;
+  if (stream.read(b) == 1) {
     *value = b << 8;
-    if (readByte(&b)) {
+    if (stream.read(b) == 1) {
       *value |= b;
       return true;
     } else {
@@ -190,11 +208,12 @@ bool MQTTClient::readWord(word *value) {
   }
 }
 
-bool MQTTClient::writeWord(const word value) {
-  byte b = value >> 8;
-  if (writeByte(b)) {
+/** @brief  Writes a word to the stream in big endian order */
+bool MQTTBase::writeWord(const uint16_t value) {
+  uint8_t b = value >> 8;
+  if (stream.write(b) == 1) {
     b = value & 0xFF;
-    if (writeByte(b)) {
+    if (stream.write(b) == 1) {
       return true;
     } else {
       return false;
@@ -204,122 +223,58 @@ bool MQTTClient::writeWord(const word value) {
   }
 }
 
-bool MQTTClient::readData(char* data, const word len) {
-  byte* ptr;
-  word remaining = len;
-  ptr = (byte*)data;
+/** @brief    Reads a UTF8 string from the stream in the format required by the MQTT protocol */
+bool MQTTBase::readStr(String str&) {
+  uint16_t len;
 
-  //Serial.print("remaining="); Serial.println(remaining);
-  while (remaining>0) {
-    if (readByte(ptr)) {
-      ptr++;
-      remaining--;
+  if (stream.dataAvailable() < len) {
+    if (readWord(&len)) {
+      str.reserve(len);
+      str = stream.readString();
+      return (str.length() == len);
     } else {
       return false;
     }
   }
-  return true;
 }
 
-bool MQTTClient::writeData(char* data, const word len) {
-  char *ptr;
-  word rl = len;
-
-  ptr = data;
-  while (rl > 0) {
-    if (!writeByte(byte(*ptr))) {
-      return false;
-    }
-    ptr++;
-    rl--;
-  }
-  return true;
-}
-
-bool MQTTClient::writeData(String data) {
-  char c;
-  int i = 0;
-  int l = data.length();
-
-  while (l > 0) {
-    c = data.charAt(i);
-    if (!writeByte(byte(c))) {
-      return false;
-    }
-    i++;
-    l--;
-  }
-  return true;
-}
-
-bool MQTTClient::readStr(char *str, const word len) {
-  word l;
-
-  if (readWord(&l)) {
-    if (l < len) {
-      return readData(str,l);
-    } else {
-      readData(str,len);
-      return false;
-    }
-  } else {
-    return false;
-  }
-}
-
-bool MQTTClient::writeStr(char *str) {
-  char *ptr;
-  word len;
-
-  len = strlen(str);
-  if (writeWord(len)) {
-    ptr = str;
-    while (len > 0) {
-      if (!writeByte(byte(*ptr))) {
-        return false;
-      }
-      ptr++;
-      len--;
-    }
-    return true;
-  } else {
-    return false;
-  }
-}
-
-bool MQTTClient::writeStr(String str) {
-  unsigned int i;
-  char chr;
-  word len;
+/** @brief    Writes a UTF8 string to the stream in the format required by the MQTT protocol */
+bool MQTTBase::writeStr(const String str&) {
+  uint16_t len;
 
   len = str.length();
   if (writeWord(len)) {
-    i = 0;
-    while (len > 0) {
-      chr = str.charAt(i);
-      if (!writeByte(byte(chr))) {
-        return false;
-      }
-      i++;
-      len--;
-    }
-    return true;
+    return  (stream.write(str) == str.length());
   } else {
     return false;
   }
 }
+
+/* MQTT Client */
+
+MQTTClient::MQTTClient() {
+  MQTTMessageQueue incommmingPUBLISHQueue; 
+  MQTTMessageQueue outgoingPUBLISHQueue;
+  MQTTMessageQueue PUBRELQueue;
+}
+
+MQTTClient::~MQTTClient() {
+  dispose(incommingPUBLISHQueue);
+  dispose(outgoingPUBLISHQueue);
+  dispose(PUBRELQueue);
+}
+
 
 void MQTTClient::reset() {
   pingIntervalRemaining = 0;
   pingCount = 0;
-  incomingPUBLISHQueueCount = 0;
-  outgoingPUBLISHQueueCount = 0;
-  PUBRELQueueCount = 0;
+  incomingPUBLISHQueue.clear();
+  outgoingPUBLISHQueue.clear();
+  PUBRELQueue.clear();
   isConnected = false;
 }
 
-bool MQTTClient::connect(String clientID, String username, String password, bool cleanSession, word keepAlive)
-{
+bool MQTTClient::connect(const String clientID&, const String username&, const String password&, const bool cleanSession = false, const word keepAlive = MQTT_DEFAULT_KEEPALIVE) {
   byte flags;
   word rl;      // Remaining Length
 
@@ -327,14 +282,14 @@ bool MQTTClient::connect(String clientID, String username, String password, bool
 
   rl = 10 + 2 + clientID.length();
 
-  if (username != NULL) {
+  if (username.length() > 0) {
     flags = 128;
     rl += username.length() + 2;
   } else {
     flags = 0;
   }
 
-  if (password != NULL) {
+  if (password.length() > 0) {
     flags |= 64;
     rl += password.length() + 2;
   }
@@ -342,6 +297,7 @@ bool MQTTClient::connect(String clientID, String username, String password, bool
   if (willMessage.retain) {
     flags |= 32;
   }
+
   flags |= (willMessage.qos << 3);
   if (willMessage.enabled) {
     flags |= 4;
@@ -352,24 +308,21 @@ bool MQTTClient::connect(String clientID, String username, String password, bool
     flags |= 2;
   }
 
-  if ((!writeByte(0x10)) ||
-     (!writeRemainingLength(rl)) ||
-     (!writeByte(0)) ||
-     (!writeByte(4)) ||
-     (!writeByte('M')) ||
-     (!writeByte('Q')) ||
-     (!writeByte('T')) ||
-     (!writeByte('T')) ||
-     (!writeByte(4)))
-       { return false; }
+  if ( (stream.write(0x10) != 1) ||
+       (!writeRemainingLength(rl)) ||
+       (stream.write(0) != 1) ||
+       (stream.write(4) != 1) ||
+       (stream.write("MQTT") != 4) ||
+       (stream.write(4) != 1) 
+     ) return false;
 
-  if ((!writeByte(flags)) ||
-     (!writeWord(keepAlive)) ||
-     (!writeStr(clientID)))
-       { return false; }
+  if ( (stream.write(flags) != 1) ||
+       (!writeWord(keepAlive)) ||
+       (!writeStr(clientID))
+     ) return false;
 
   if (willMessage.enabled) {
-    if (!writeStr(willMessage.topic) || !writeStr(willMessage.data)) {
+    if (!writeStr(willMessage.topic) || (stream.write(willMessage.data,willMessage.data_len) != willMessage.data_len) {
       return false;
     }
   }
@@ -401,7 +354,7 @@ byte MQTTClient::recvCONNACK() {
     return MQTT_ERROR_ALREADY_CONNECTED;
   }
 
-  if (readByte(&b)) {
+  if (stream.read(b) == 1) {
     sessionPresent = (b == 1);
   } else {
     return MQTT_ERROR_INSUFFICIENT_DATA;
@@ -420,7 +373,7 @@ byte MQTTClient::recvCONNACK() {
 
   //Serial.println("packetinvalid");
   //Serial.println(stream->available());
-  if (readByte(&b)) {
+  if (stream.read(b) == 1) {
     returnCode = b;
   } else {
     return MQTT_ERROR_INSUFFICIENT_DATA;
@@ -450,15 +403,15 @@ byte MQTTClient::recvCONNACK() {
   return MQTT_ERROR_UNKNOWN;
 }
 
-bool MQTTClient::disconnect() {
-  if (writeByte(0xE0) && writeByte(0)) {
-    isConnected = false;
-    return true;
-  } else {
-    return false;
-  }
+/** @brief Disconnects the MQTT connection */
+void MQTTClient::disconnect() {
+  stream.write(0xE0);
+  stream.write(0);
+  isConnected = false;
 }
 
+/** @brief Called when the MQTT server terminates the connection
+ *  @details Override disconnected() to perform additional actions when the the server terminates the MQTT connection */
 void MQTTClient::disconnected() {
   isConnected = false;
   pingIntervalRemaining = 0;
@@ -468,8 +421,8 @@ bool MQTTClient::sendPINGREQ() {
   bool result;
   //Serial.println("sendPINGREQ");
   if (isConnected) {
-    result = writeByte(12 << 4);
-    result &= writeByte(0);
+    result = (stream.write(12 << 4) == 1);
+    result &= (stream.write(0) == 1);
     return result;
   } else {
     return false;
@@ -504,169 +457,52 @@ byte MQTTClient::pingInterval() {
   return MQTT_ERROR_NONE;
 }
 
-bool MQTTClient::addToOutgoingQueue(word packetid, qos_t qos, bool retain, bool duplicate, char* topic, char* data) {
-  if (outgoingPUBLISHQueueCount == MQTT_PACKET_QUEUE_SIZE) {
-    //Serial.println("Error: outgoingPUBLISHQueue overflow");
-    return false;
-  }
-  outgoingPUBLISHQueue[outgoingPUBLISHQueueCount].packetid = packetid;
-  outgoingPUBLISHQueue[outgoingPUBLISHQueueCount].timeout = MQTT_PACKET_TIMEOUT;
-  outgoingPUBLISHQueue[outgoingPUBLISHQueueCount].retries = 0;
-  outgoingPUBLISHQueue[outgoingPUBLISHQueueCount].qos = qos;
-  outgoingPUBLISHQueue[outgoingPUBLISHQueueCount].retain = retain;
-  outgoingPUBLISHQueue[outgoingPUBLISHQueueCount].duplicate = duplicate;
-  outgoingPUBLISHQueue[outgoingPUBLISHQueueCount].topic = String(topic);
-  outgoingPUBLISHQueue[outgoingPUBLISHQueueCount].data = String(data);
-  //strlcpy(outgoingPUBLISHQueue[outgoingPUBLISHQueueCount].topic,topic,MQTT_MAX_TOPIC_LEN);
-  //strlcpy(outgoingPUBLISHQueue[outgoingPUBLISHQueueCount].data,data,MQTT_MAX_DATA_LEN);
-  outgoingPUBLISHQueueCount++;
-  return true;
-}
-
-bool MQTTClient::addToOutgoingQueue(word packetid, qos_t qos, bool retain, bool duplicate, String topic, String data) {
-  if (outgoingPUBLISHQueueCount == MQTT_PACKET_QUEUE_SIZE) {
-    //Serial.println("Error: outgoingPUBLISHQueue overflow");
-    return false;
-  }
-  outgoingPUBLISHQueue[outgoingPUBLISHQueueCount].packetid = packetid;
-  outgoingPUBLISHQueue[outgoingPUBLISHQueueCount].timeout = MQTT_PACKET_TIMEOUT;
-  outgoingPUBLISHQueue[outgoingPUBLISHQueueCount].retries = 0;
-  outgoingPUBLISHQueue[outgoingPUBLISHQueueCount].qos = qos;
-  outgoingPUBLISHQueue[outgoingPUBLISHQueueCount].retain = retain;
-  outgoingPUBLISHQueue[outgoingPUBLISHQueueCount].duplicate = duplicate;
-  outgoingPUBLISHQueue[outgoingPUBLISHQueueCount].topic = topic;
-  outgoingPUBLISHQueue[outgoingPUBLISHQueueCount].data = data;
-  //strlcpy(outgoingPUBLISHQueue[outgoingPUBLISHQueueCount].topic,topic.c_str(),MQTT_MAX_TOPIC_LEN);
-  //strlcpy(outgoingPUBLISHQueue[outgoingPUBLISHQueueCount].data,data.c_str(),MQTT_MAX_DATA_LEN);
-  outgoingPUBLISHQueueCount++;
-  return true;
-}
-
-bool MQTTClient::addToIncomingQueue(word packetid, qos_t qos, bool retain, bool duplicate, char* topic, char* data) {
-  if (incomingPUBLISHQueueCount == MQTT_PACKET_QUEUE_SIZE) {
-    //Serial.println("Error: incomingPUBLISHQueue overflow");
-    return false;
-  }
-  incomingPUBLISHQueue[incomingPUBLISHQueueCount].packetid = packetid;
-  incomingPUBLISHQueue[incomingPUBLISHQueueCount].timeout = MQTT_PACKET_TIMEOUT;
-  incomingPUBLISHQueue[incomingPUBLISHQueueCount].retries = 0;
-  incomingPUBLISHQueue[incomingPUBLISHQueueCount].qos = qos;
-  incomingPUBLISHQueue[incomingPUBLISHQueueCount].retain = retain;
-  incomingPUBLISHQueue[incomingPUBLISHQueueCount].duplicate = duplicate;
-  incomingPUBLISHQueue[incomingPUBLISHQueueCount].topic = String(topic);
-  incomingPUBLISHQueue[incomingPUBLISHQueueCount].data = String(data);
-  //strlcpy(incomingPUBLISHQueue[incomingPUBLISHQueueCount].topic,topic,MQTT_MAX_TOPIC_LEN);
-  //strlcpy(incomingPUBLISHQueue[incomingPUBLISHQueueCount].data,data,MQTT_MAX_DATA_LEN);
-  incomingPUBLISHQueueCount++;
-  return true;
-}
-
-bool MQTTClient::addToPUBRELQueue(word packetid) {
-  if (PUBRELQueueCount == MQTT_PACKET_QUEUE_SIZE) {
-    //Serial.println("Error: PUBRELQueue overflow");
-    return false;
-  }
-  PUBRELQueue[PUBRELQueueCount].packetid = packetid;
-  PUBRELQueue[PUBRELQueueCount].timeout = MQTT_PACKET_TIMEOUT;
-  PUBRELQueue[PUBRELQueueCount].retries = 0;
-  PUBRELQueueCount++;
-  return true;
-}
-
-void MQTTClient::deleteFromOutgoingQueue(byte i) {
-  for (byte j=i;j<outgoingPUBLISHQueueCount - 1;j++) {
-    outgoingPUBLISHQueue[j].packetid = outgoingPUBLISHQueue[j+1].packetid;
-    outgoingPUBLISHQueue[j].timeout = outgoingPUBLISHQueue[j+1].timeout;
-    outgoingPUBLISHQueue[j].retries = outgoingPUBLISHQueue[j+1].retries;
-    outgoingPUBLISHQueue[j].qos = outgoingPUBLISHQueue[j+1].qos;
-    outgoingPUBLISHQueue[j].retain = outgoingPUBLISHQueue[j+1].retain;
-    outgoingPUBLISHQueue[j].duplicate = outgoingPUBLISHQueue[j+1].duplicate;
-    outgoingPUBLISHQueue[j].topic = outgoingPUBLISHQueue[j+1].topic;
-    outgoingPUBLISHQueue[j].data = outgoingPUBLISHQueue[j+1].data;
-    //strlcpy(outgoingPUBLISHQueue[j].topic,outgoingPUBLISHQueue[j+1].topic,MQTT_MAX_TOPIC_LEN);
-    //strlcpy(outgoingPUBLISHQueue[j].data,outgoingPUBLISHQueue[j+1].topic,MQTT_MAX_DATA_LEN);
-  }
-  outgoingPUBLISHQueueCount--;
-}
-
-void MQTTClient::deleteFromIncomingQueue(byte i) {
-  for (byte j=i;j<incomingPUBLISHQueueCount - 1;j++) {
-    incomingPUBLISHQueue[j].packetid = incomingPUBLISHQueue[j+1].packetid;
-    incomingPUBLISHQueue[j].timeout = incomingPUBLISHQueue[j+1].timeout;
-    incomingPUBLISHQueue[j].retries = incomingPUBLISHQueue[j+1].retries;
-    incomingPUBLISHQueue[j].qos = incomingPUBLISHQueue[j+1].qos;
-    incomingPUBLISHQueue[j].retain = incomingPUBLISHQueue[j+1].retain;
-    incomingPUBLISHQueue[j].duplicate = incomingPUBLISHQueue[j+1].duplicate;
-    incomingPUBLISHQueue[j].topic = incomingPUBLISHQueue[j+1].topic;
-    incomingPUBLISHQueue[j].data = incomingPUBLISHQueue[j+1].data;
-    //strlcpy(incomingPUBLISHQueue[j].topic,incomingPUBLISHQueue[j+1].topic,MQTT_MAX_TOPIC_LEN);
-    //strlcpy(incomingPUBLISHQueue[j].data,incomingPUBLISHQueue[j+1].topic,MQTT_MAX_DATA_LEN);
-  }
-  incomingPUBLISHQueueCount--;
-}
-
-void MQTTClient::deleteFromPUBRELQueue(byte i) {
-  for (byte j=i;j<PUBRELQueueCount - 1;j++) {
-    PUBRELQueue[j].packetid = PUBRELQueue[j+1].packetid;
-    PUBRELQueue[j].timeout = PUBRELQueue[j+1].timeout;
-    PUBRELQueue[j].retries = PUBRELQueue[j+1].retries;
-  }
-  PUBRELQueueCount--;
-}
-
 bool MQTTClient::queueInterval() {
-  int i;
-  bool result = true;
+  queuedMessage_t* qm;
+  bool result = 0;
 
-  // Outgoing PUBLISH
-  if (outgoingPUBLISHQueueCount > 0) {
-    //Serial.println("Outgoingqueuecount");
-    for (i=outgoingPUBLISHQueueCount-1;i>=0;i--) {
-      //Serial.println(i);
-      if (--outgoingPUBLISHQueue[i].timeout == 0) {
-        outgoingPUBLISHQueue[i].retries++;
-        if (outgoingPUBLISHQueue[i].retries >= MQTT_PACKET_RETRIES) {
-          deleteFromOutgoingQueue(i);
-          result = false;
-        } else {
-          //Serial.println('publish');
-          publish(outgoingPUBLISHQueue[i].topic,outgoingPUBLISHQueue[i].data,outgoingPUBLISHQueue[i].qos,outgoingPUBLISHQueue[i].retain,true);
-          outgoingPUBLISHQueue[i].timeout = MQTT_PACKET_TIMEOUT;
-        }
+  qm = PUBLISHQueue.pop();
+  if (qm != null) {
+    if (--qm->timeout == 0) {
+      if (++qm->retries >= MQTT_PACKET_RETRIES) {
+        result = false;
+        delete pm->message;
+        free(pm);
+      } else {
+        pm->timeout = MQTT_PACKET_TIMEOUT;
+        pm->message.duplicate = true;
+        outgoingPUBLISHQueue.push(qm);
+        sendPUBLISH(qm);
       }
     }
   }
 
-  // Incoming PUBLISH
-  if (incomingPUBLISHQueueCount > 0) {
-    //Serial.println("Incomingqueuecount");
-    for (i=incomingPUBLISHQueueCount-1;i>=0;i--) {
-      if (--incomingPUBLISHQueue[i].timeout == 0) {
-        incomingPUBLISHQueue[i].retries++;
-        if (incomingPUBLISHQueue[i].retries >= MQTT_PACKET_RETRIES) {
-          deleteFromIncomingQueue(i);
-          result = false;
-        } else {
-          sendPUBREC(incomingPUBLISHQueue[i].packetid);
-          incomingPUBLISHQueue[i].timeout = MQTT_PACKET_TIMEOUT;
-        }
+  qm = PUBRECQueue.pop();
+  if (qm != null) {
+    if (--qm->timeout == 0) {
+      if (++qm->retries >= MQTT_PACKET_RETRIES) {
+        result = false;
+        delete pm->message;
+        free(pm);
+      } else {
+        pm->timeout = MQTT_PACKET_TIMEOUT;
+        incomingPUBLISHQueue.push(qm);
+        sendPUBREC(qm)
       }
     }
   }
-
-  // PUBRELQueue
-  if (PUBRELQueueCount > 0) {
-    //Serial.println("PUBRELQueueCount");
-    for (i=PUBRELQueueCount-1;i>=0;i--) {
-      if (--PUBRELQueue[i].timeout == 0) {
-        PUBRELQueue[i].retries++;
-        if (PUBRELQueue[i].retries >= MQTT_PACKET_RETRIES) {
-          deleteFromPUBRELQueue(i);
-          result = false;
-        } else {
-          sendPUBREL(PUBRELQueue[i].packetid);
-          PUBRELQueue[i].timeout = MQTT_PACKET_TIMEOUT;
-        }
+  
+  qm = PUBRELQueue.pop();
+  if (qm != null) {
+    if (--qm->timeout == 0) {
+      if (++qm->retries >= MQTT_PACKET_RETRIES) {
+        result = false;
+        delete pm->message;
+        free(pm);
+      } else {
+        pm->timeout = MQTT_PACKET_TIMEOUT;
+        PUBRELQueue.push(qm);
+        sendPUBREL(qm)
       }
     }
   }
@@ -682,30 +518,15 @@ byte MQTTClient::intervalTimer() {
   }
 }
 
-bool MQTTClient::subscribe(word packetid, char *filter, qos_t qos) {
+bool MQTTClient::subscribe(const word packetid, const String filter&, const qos_t qos) {
   bool result;
 
   if (filter != NULL) {
-    result = writeByte(0x82);
+    result = (stream.write(0x82) == 1);
     result &= writeRemainingLength(2 + 2 + 1 + strlen(filter));
     result &= writeWord(packetid);
     result &= writeStr(filter);
-    result &= writeByte(qos);
-    return result;
-  } else {
-    return false;
-  }
-}
-
-bool MQTTClient::subscribe(word packetid, String filter, qos_t qos) {
-  bool result;
-
-  if (filter != NULL) {
-    result = writeByte(0x82);
-    result &= writeRemainingLength(2 + 2 + 1 + filter.length());
-    result &= writeWord(packetid);
-    result &= writeStr(filter);
-    result &= writeByte(qos);
+    result &= (stream.write(qos) == 1);
     return result;
   } else {
     return false;
@@ -769,105 +590,78 @@ byte MQTTClient::recvUNSUBACK() {
   }
 }
 
-bool MQTTClient::publish(char *topic, char *data, qos_t qos, bool retain, bool duplicate) {
-  byte flags = 0;
-  word packetid;
-  long remainingLength;
-  bool result;
-
-
-  if ((topic != NULL) && (strlen(topic)>0) && (qos<=qtMAX_VALUE) && (isConnected)) {
-
-    //Serial.print("sendPUBLISH topic="); Serial.print(topic); Serial.print(" data="); Serial.print(data); Serial.print(" qos="); Serial.println(qos);
-    flags |= (qos << 1);
-    if (duplicate) {
-      flags |= 8;
-    }
-    if (retain) {
-      flags |= 1;
-    }
-
-    remainingLength = 2 + strlen(topic) + strlen(data);
-    if (qos>0) {
-      remainingLength += 2;
-    }
-
-    packetid = nextPacketID++;
-    if (nextPacketID >= MQTT_MAX_PACKETID) {
-      nextPacketID = MQTT_MIN_PACKETID;
-    }
-
-    result = (
-      writeByte(0x30 | flags) &&
-      writeRemainingLength(remainingLength) &&
-      writeStr(topic)
-    );
-
-    if (result && (qos > 0)) {
-      result = writeWord(packetid);
-    }
-
-    if (result && (data != NULL)) {
-      result = writeData(data,strlen(data));
-    }
-
-    if (result && (qos > 0)) {
-      addToOutgoingQueue(packetid,qos,retain,duplicate,topic,data);
-    }
-
-    return result;
-
-  } else return false;
+/** @brief   Publish a message to the server.
+ *  @remark  In this version of the function, data is provided as a String object.
+ *  @warning The data sent does not include the trailing null character */
+bool MQTTClient::publish(String topic, uint8_t *data, size_t data_len, qos_t qos, bool retain, bool duplicate) {
+  MQTTMessage msg(topic,data,data_len,qos,retain,duplicate);
+  sendPUBLISH(msg);
 }
 
+/** @brief   Publish a message to the server.
+ *  @remark  In this version of the function, data is provided as a String object.
+ *  @warning If the data sent might include null characters, use the alternate version of this function.
+ *  @warning The data sent by this function does not include a trailing null character */
 bool MQTTClient::publish(String topic, String data, qos_t qos, bool retain, bool duplicate) {
+  MQTTMessage msg(topic,(uint8_t *)data.c_str(),data.length(),qos,retain,duplicate);
+  sendPUBLISH(msg);
+}
+
+/** @brief    Sends an MQTT publish packet. Do not call directly. */  
+bool MQTTClient::sendPUBLISH(MQTTMessage msg) {
   byte flags = 0;
   word packetid;
   long remainingLength;
   bool result;
 
+  if (msg != NULL) {
+    if ((msg->topic != NULL) && (msg->topic.length()>0) && (msg->qos<3) && (isConnected)) {
 
-  if ((topic != NULL) && (topic.length()>0) && (qos<3) && (isConnected)) {
+      //Serial.print("sendPUBLISH topic="); Serial.print(msg->topic); Serial.print(" data="); Serial.print(msg); Serial.print(" qos="); Serial.println(msg->qos);
+      flags |= (msg->qos << 1);
+      if (msg->duplicate) {
+        flags |= 8;
+      }
+      if (msg->retain) {
+        flags |= 1;
+      }
 
-    //Serial.print("sendPUBLISH topic="); Serial.print(topic); Serial.print(" data="); Serial.print(data); Serial.print(" qos="); Serial.println(qos);
-    flags |= (qos << 1);
-    if (duplicate) {
-      flags |= 8;
-    }
-    if (retain) {
-      flags |= 1;
-    }
+      remainingLength = 2 + msg->topic.length() + msg->data_len;
+      if (msg->qos>0) {
+        remainingLength += 2;
+      }
 
-    remainingLength = 2 + topic.length() + data.length();
-    if (qos>0) {
-      remainingLength += 2;
-    }
+      packetid = nextPacketID++;
+      if (nextPacketID >= MQTT_MAX_PACKETID) {
+        nextPacketID = MQTT_MIN_PACKETID;
+      }
 
-    packetid = nextPacketID++;
-    if (nextPacketID >= MQTT_MAX_PACKETID) {
-      nextPacketID = MQTT_MIN_PACKETID;
-    }
+      result = (
+        writeByte(0x30 | flags) &&
+        writeRemainingLength(remainingLength) &&
+        writeStr(msg->topic)
+      );
 
-    result = (
-      writeByte(0x30 | flags) &&
-      writeRemainingLength(remainingLength) &&
-      writeStr(topic)
-    );
+      if (result && (msg->qos > 0)) {
+        result = writeWord(packetid);
+      }
 
-    if (result && (qos > 0)) {
-      result = writeWord(packetid);
-    }
+      if (result && (msg->data != NULL)) {
+        result = writeData(msg->data,msg->data_len);
+      }
 
-    if (result && (data != NULL)) {
-      result = writeData(data);
-    }
+      if (result && (qos > 0)) {
+        queuedMessage* qm = malloc(sizeof(queuedMessage_t));
+        qm->packetid = packetid;
+        qm->timeout = MQTT_PACKET_TIMEOUT;
+        qm->retries = 0;
+        qm->message = msg;
+        outgoingPUBLISHQueue.push(qm);
+      }
 
-    if (result && (qos > 0)) {
-      addToOutgoingQueue(packetid,qos,retain,duplicate,topic,data);
-    }
+      return result;
 
-    return result;
-
+    } else return false;
   } else return false;
 }
 

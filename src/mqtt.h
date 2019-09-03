@@ -100,6 +100,7 @@ class MQTTMessage: Printable, Print {
   public:
     String topic;          /**< The topic of the message */
     qos_t qos;             /**< Message quality of service level */
+    bool duplicate;        /**< Set to true if this message is a duplicate copy of a previous message because it has been resent */
     bool retain;           /**< For incoming messages, whether it is being sent because it is a retained 
                                 message. For outgoing messages, tells the server to retain the message. */
     uint8_t data[];        /**< The data buffer */
@@ -122,24 +123,27 @@ struct queuedMessage_t {
   word packetid;
   byte timeout;
   byte retries;
-  bool duplicate;
   MQTTMessage message;
   queudMessage_t *next;
 };
 
 class MQTTMessageQueue {
   private:
-    queuedMessage_t *root = NULL;
+    queuedMessage_t *first = NULL;
+    queuedMessage_t *last  = NULL;
     int count = 0;
   public:
+    ~MQTTMessageQueue() { clear(); }
     int getCount() { return count; }
-    void push(MQTTMessage);
-    MQTTMessage pop();
+    void clear();
+    void push(queuedMessage_t *qm);
+    queuedMessage_t pop();
 }
 
 struct willMessage_t {
   String topic;
-  String data;
+  uint8_t* data;
+  size_t data_len;
   bool enabled;
   bool retain;
   byte qos;
@@ -147,47 +151,40 @@ struct willMessage_t {
 
 typedef willMessage_t connectMessage_t;
 
-struct packetMessage_t {
-  word packetid;
-  byte timeout;
-  byte retries;
-};
-
-class MQTTClient {
+class MQTTBase {
   private:
-    publishMessage_t outgoingPUBLISHQueue[MQTT_PACKET_QUEUE_SIZE];
-    publishMessage_t incomingPUBLISHQueue[MQTT_PACKET_QUEUE_SIZE];
-    packetMessage_t  PUBRELQueue[MQTT_PACKET_QUEUE_SIZE];
-    byte incomingPUBLISHQueueCount;
-    byte outgoingPUBLISHQueueCount;
-    byte PUBRELQueueCount;
-    word nextPacketID = MQTT_MIN_PACKETID;
-    int  pingIntervalRemaining;
-    byte pingCount;
-    //
-    bool readByte(byte* b);
-    bool writeByte(const byte b);
+    Stream stream;
+  protected:
     bool readWord(word *value);
     bool writeWord(const word value);
     bool readRemainingLength(long *value);
     bool writeRemainingLength(const long value);
-    bool readData(char *data, const word len);
-    bool writeData(char *data, const word len);
-    bool writeData(String data);
-    bool writeStr(char* str);
-    bool writeStr(String str);
-    bool readStr(char* str, const word len);
+    bool writeStr(const String str&);
+    bool readStr(String str&);
+  public
+    MQTTBase(Stream stream&): stream(stream);
+}
+
+class MQTTClient: public MQTTBase {
+  private:
+    MQTTMessageQueue outgoingPUBLISHQueue; /**< Outgoing QOS1 or QOS2 Publish Messages that have not been acknowledged */
+    MQTTMessageQueue incomingPUBLISHQueue; /**< Incoming QOS2 messages that have not been acknowledged */
+    MQTTMessageQueue PUBRELQueue;          /**< Outgoing QOS2 messages that have not been released */
+    word nextPacketID = MQTT_MIN_PACKETID;
+    int  pingIntervalRemaining;
+    byte pingCount;
+    //
     //
     void reset();
     byte pingInterval();
     bool queueInterval();
-    bool addToOutgoingQueue(word packetid, byte qos, bool retain, bool duplicate, char* topic, char* data);
-    bool addToOutgoingQueue(word packetid, byte qos, bool retain, bool duplicate, String topic, String data);
-    bool addToIncomingQueue(word packetid, byte qos, bool retain, bool duplicate, char* topic, char* data);
-    bool addToPUBRELQueue(word packetid);
-    void deleteFromOutgoingQueue(byte i);
-    void deleteFromIncomingQueue(byte i);
-    void deleteFromPUBRELQueue(byte i);
+    //bool addToOutgoingQueue(word packetid, byte qos, bool retain, bool duplicate, char* topic, char* data);
+    //bool addToOutgoingQueue(word packetid, byte qos, bool retain, bool duplicate, String topic, String data);
+    //bool addToIncomingQueue(word packetid, byte qos, bool retain, bool duplicate, char* topic, char* data);
+    //bool addToPUBRELQueue(word packetid);
+    //void deleteFromOutgoingQueue(byte i);
+    //void deleteFromIncomingQueue(byte i);
+    //void deleteFromPUBRELQueue(byte i);
     //
     byte recvCONNACK();
     byte recvPINGRESP();
@@ -200,32 +197,33 @@ class MQTTClient {
     byte recvPUBCOMP();
     //
     bool sendPINGREQ();
+    bool sendPUBLISH(MQTTMessage msg);
     bool sendPUBACK(word packetid);
     bool sendPUBREL(word packetid);
     bool sendPUBREC(word packetid);
     bool sendPUBCOMP(word packetid);
   public:
-    Stream* stream;
     willMessage_t willMessage;
     connectMessage_t connectMessage;
     bool isConnected;
-    // Events
+    // Constructor * Destructor
+    MQTTClient();
+    ~MQTTClient();
+    // Outgoing events
     virtual void connected() {};
+    virtual void disconnected();
     virtual void initSession() {};
     virtual void subscribed(word packetID, byte resultCode) {};
     virtual void unsubscribed(word packetID) {};
     virtual void receiveMessage(String topic, String data, bool retain, bool duplicate) {};
     // Methods
-    bool connect(String clientID, String username, String password, bool cleanSession = false, word keepAlive = MQTT_DEFAULT_KEEPALIVE);
+    bool connect(const String clientID&, const String username&, const String password&, const bool cleanSession = false, const word keepAlive = MQTT_DEFAULT_KEEPALIVE);
     bool disconnect();
-    void disconnected();
-    bool subscribe(word packetid, char *filter, qos_t qos = qtAT_MOST_ONCE);
-    bool subscribe(word packetid, String filter, qos_t qos = qtAT_MOST_ONCE);
-    bool unsubscribe(word packetid, char *filter);
-    bool publish(char *topic, char *data, qos_t qos = qtAT_MOST_ONCE, bool retain=false, bool duplicate=false);
-    bool publish(char *topic, uint8_t *data, uint8_t data_len, qos_t qos = qtAT_MOST_ONCE, bool retain=false, bool duplicate = false); 
-    bool publish(String topic, String data, qos_t qos = qtAT_MOST_ONCE, bool retain=false, bool duplicate=false);
-    
+    bool subscribe(word packetid, const String filter&, qos_t qos = qtAT_MOST_ONCE);
+    bool unsubscribe(word packetid, const String filter&);
+    bool publish(const String topic&, const uint8_t* data, const uint16_6 data_len, const qos_t qos = qtAT_MOST_ONCE, const bool retain=false);
+    bool publish(const String topic&, const String data&, const qos_t qos = qtAT_MOST_ONCE, const bool retain=false);
+    // Incoming events 
     byte dataAvailable(); // Needs to be called whenever there is data available
     byte intervalTimer(); // Needs to be called by program every second
 };
