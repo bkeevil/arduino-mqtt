@@ -1,3 +1,11 @@
+/** @file       mqtt.h
+ *  @brief      An MQTT 3.1.1 client library for the Arduino framework
+ *  @author     Bond Keevil
+ *  @version    2.0
+ *  @date       September 1, 2019
+ *  @copyright  GNU General Public License Version 3
+ */
+
 #ifndef MQTT_H
 #define MQTT_H
 
@@ -5,16 +13,14 @@
 #include "Printable.h"
 #include "Print.h"
 
-#define MQTT_DEFAULT_PING_INTERVAL               30 // Number of seconds between pings
-#define MQTT_DEFAULT_PING_RETRY_INTERVAL          6 // Frequency of pings in seconds after a failed ping response.
-#define MQTT_DEFAULT_KEEPALIVE                   60 // Number of seconds of inactivity before disconnect
-//#define MQTT_MAX_TOPIC_LEN                       64 // Bytes
-//#define MQTT_MAX_DATA_LEN                        64 // Bytes
-//#define MQTT_PACKET_QUEUE_SIZE                    8
-#define MQTT_MIN_PACKETID                       256 // The first 256 packet IDs are reserved for subscribe/unsubscribe packet ids
+#define MQTT_DEFAULT_PING_INTERVAL               30 /**< Number of seconds between pings */
+#define MQTT_DEFAULT_PING_RETRY_INTERVAL          6 /**< Frequency of pings in seconds after a failed ping response */
+#define MQTT_DEFAULT_KEEPALIVE                   60 /**< Number of seconds of inactivity before disconnect */
+#define MQTT_MIN_PACKETID                       256 /**< The first 256 packet IDs are reserved for subscribe/unsubscribe packet ids */
 #define MQTT_MAX_PACKETID                     65535
-#define MQTT_PACKET_TIMEOUT                       3 // Number of seconds before a packet is resent
-#define MQTT_PACKET_RETRIES                       2 // Number of retry attempts to send a packet before the connection is considered dead
+#define MQTT_PACKET_TIMEOUT                       3 /**< Number of seconds before a packet is resent */
+#define MQTT_PACKET_RETRIES                       2 /**< Number of retry attempts to send a packet before the connection is considered dead */
+#define MQTT_MESSAGE_ALLOC_BLOCK_SIZE             8 /**< When writing a message data buffer, this much memory will be allocated at a time */
 
 #define ptBROKERCONNECT                           0
 #define ptCONNECT                                 1
@@ -71,35 +77,45 @@
 
 #define MQTT_ERROR_UNKNOWN                      255
 
+/** Quality of Service Levels */
 enum qos_t {
-  qtAT_MOST_ONCE = 0,
-  qtAT_LEAST_ONCE,
-  qtEXACTLY_ONCE,
+  qtAT_MOST_ONCE = 0,           /**< The packet is sent once and may or may not be received by the server */
+  qtAT_LEAST_ONCE,              /**< The packet is acknowledge by the server but may be sent by the client more than once */
+  qtEXACTLY_ONCE,               /**< Delivery of the packet exactly once is guaranteed using multiple acknowledgements */
   qtMAX_VALUE = qtEXACTLY_ONCE
 };
 
+/** @class    MQTTMessage mqtt.h
+ *  @brief    Represents an MQTT message that is sent or received 
+ *  @details  Use the methods of the Print and Printable ancestor classes to access the message 
+ *            data buffer. If the size of the data buffer is known, call reserve() to reserve 
+ *            a specific memory size. Otherwise memory will be allocated in chunks of 
+ *            MQTT_MESSAGE_ALLOC_BLOCK_SIZE bytes. Optionally, call pack() when done to free any 
+ *            unused bytes.
+ */
 class MQTTMessage: Printable, Print {
   private: 
-    size_t data_size;
-    size_t data_pos;
+    size_t data_size;      /**< The number of bytes allocated in the data buffer */
+    size_t data_pos;       /**< Index of the next byte to be written */
   public:
-    String topic;
-    qos_t qos;
-    bool retain;
-    uint8_t data[];
-    size_t data_len;
-    // 
+    String topic;          /**< The topic of the message */
+    qos_t qos;             /**< Message quality of service level */
+    bool retain;           /**< For incoming messages, whether it is being sent because it is a retained 
+                                message. For outgoing messages, tells the server to retain the message. */
+    uint8_t data[];        /**< The data buffer */
+    size_t data_len;       /**< The number of valid bytes in the data buffer. Might by < data_size */
+    /** @brief  Initialize the Message data. The only required parameter is a topic String */
     MQTTMessage(String topic, qos_t qos = qtAT_LEAST_ONCE, bool retain = false, uint8_t data[] = NULL, uint8_t data_len = 0) : topic(topic),qos(qos),retain(retain),data(data),data_len(data_len),data_size(data_len),data_pos(data_len);
-    virtual size_t printTo(Print& p);
-    virtual int read();
-    virtual int peek();
-    virtual size_t write(uint8_t b);
-    virtual size_t write(const uint8_t *buffer, size_t size);
-    virtual int available() { return data_len - data_pos; }
-    virtual int availableForWrite() { return data_size - data_pos; } 
-    void reserve(size_t size);
-    void pack();
-   
+    virtual size_t printTo(Print& p);  /**< See the Prinatable class in the Arduino documentation */
+    virtual int read();                /**< See the Stream class in the Arduino documentation */
+    virtual int peek();                /**< See the Stream class in the Arduino documentation */ 
+    virtual size_t write(uint8_t b);   /**< Writes a single byte to the end of the data buffer. See the Print class in the Arduino documnetation */
+    virtual size_t write(const uint8_t *buffer, size_t size);         /**< Writes size bytes from buffer to the end of the data buffer. See the Print class in the Arduino documentation */
+    virtual int available() { return data_len - data_pos; }           /**< The number of bytes remaining to be read from the buffer */
+    virtual int availableForWrite() { return data_size - data_pos; }  /**< The number of bytes allocated but not written to */
+    void reserve(size_t size);          /**< Reserve size bytes of RAM for the data buffer (Optional) */
+    void pack();                        /**< Free any unused RAM */
+    void seek(int pos) { data_pos = pos; } /** Set the index from which the next character will be read/written */
 }
 
 struct queuedMessage_t {
@@ -107,8 +123,19 @@ struct queuedMessage_t {
   byte timeout;
   byte retries;
   bool duplicate;
-  mqttMessage_t *message;
+  MQTTMessage message;
+  queudMessage_t *next;
 };
+
+class MQTTMessageQueue {
+  private:
+    queuedMessage_t *root = NULL;
+    int count = 0;
+  public:
+    int getCount() { return count; }
+    void push(MQTTMessage);
+    MQTTMessage pop();
+}
 
 struct willMessage_t {
   String topic;
@@ -126,7 +153,6 @@ struct packetMessage_t {
   byte retries;
 };
 
-class MQTT
 class MQTTClient {
   private:
     publishMessage_t outgoingPUBLISHQueue[MQTT_PACKET_QUEUE_SIZE];
