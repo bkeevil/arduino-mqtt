@@ -8,10 +8,10 @@
  */
 size_t MQTTMessage::printTo(Print& p) {
   size_t pos;
-  for (pos=0;pos<_data_len;pos++) { 
-    p.print(_data[pos]);
+  for (pos=0;pos<data_len;pos++) { 
+    p.print(data[pos]);
   }
-  return _data_len;
+  return data_len;
 }
 
 /**
@@ -20,22 +20,22 @@ size_t MQTTMessage::printTo(Print& p) {
  * @param size Number of bytes to reserve
  */
 void MQTTMessage::reserve(size_t size) {
-if (data_size == 0) {
+  if (data_size == 0) {
     data = (byte *) malloc(size);
-  } else 
+  } else {
     data = (byte *) realloc(data,size);
   }  
   data_size = size;
 }
 
 /**
- * @brief Call after writing the data buffer is done to dispose of any extra reserved memory
+ * @brief Call after writing the data buffer is done to free any extra reserved memory
  * 
  */
 void MQTTMessage::pack() {
   if (data_size > data_len) {
     if (data_len == 0) {
-      dispose(data);
+      free(data);
       data = NULL;
     } else {
       data = (byte *) realloc(data,data_len);
@@ -111,28 +111,29 @@ size_t MQTTMessage::write(const byte *buffer, size_t size) {
 
 void MQTTMessageQueue::clear() {
   queuedMessage_t* ptr = first;
-  while (first != null) {
+  while (first != NULL) {
     ptr = first;
     first = first->next;
     count--;
-    if (ptr->message != null)
-      dispose(ptr->message);
+    if (ptr->message != NULL)
+      delete ptr->message;
     free(ptr);
   }
 }
 
 bool MQTTMessageQueue::interval() {
   bool result = true;
+  queuedMessage_t* qm;
 
   qm = pop();
-  if (qm != null) {
+  if (qm != NULL) {
     if (--qm->timeout == 0) {
       if (++qm->retries >= MQTT_PACKET_RETRIES) {
         result = false;
-        delete pm->message;
-        free(pm);
+        delete qm->message;
+        free(qm);
       } else {
-        pm->timeout = MQTT_PACKET_TIMEOUT;
+        qm->timeout = MQTT_PACKET_TIMEOUT;
         push(qm);
         resend(qm);
       }
@@ -143,28 +144,41 @@ bool MQTTMessageQueue::interval() {
 }
 
 void MQTTMessageQueue::push(queuedMessage_t *qm) {
-  if (last != null) {
+  if (last != NULL) {
     last->next = qm;
-    qm->next = null;
+    qm->next = NULL;
     last = qm;
   } else {
     first = qm;
     last = qm;
-    qm->next = null;
+    qm->next = NULL;
   }
   count++;
 }
 
-queuedMessage_t MQTTMessageQueue::pop() {
+queuedMessage_t* MQTTMessageQueue::pop() {
   queuedMessage_t* ptr;
-  if (first != null) {
+  if (first != NULL) {
     ptr = first;
     first = first->next;
     count--;
     return ptr;
   } else {
-    return null;
+    return NULL;
   }
+}
+
+void MQTTPUBLISHQueue::resend(queuedMessage_t *qm) { 
+  qm->message->duplicate = true; 
+  client->sendPUBLISH(qm->message); 
+}
+
+void MQTTPUBRECQueue::resend(queuedMessage_t *qm) { 
+  client->sendPUBREC(qm->packetid); 
+}
+
+void MQTTPUBRELQueue::resend(queuedMessage_t *qm) { 
+  client->sendPUBREL(qm->packetid); 
 }
 
 /* MQTTBase */
@@ -547,23 +561,23 @@ byte MQTTClient::recvUNSUBACK() {
 
 /** @brief   Publish a message to the server.
  *  @remark  In this version of the function, data is provided as a String object.
- *  @warning The data sent does not include the trailing null character */
+ *  @warning The data sent does not include the trailing NULL character */
 bool MQTTClient::publish(String topic, byte *data, size_t data_len, qos_t qos, bool retain, bool duplicate) {
-  MQTTMessage msg(topic,data,data_len,qos,retain,duplicate);
+  MQTTMessage* msg = new MQTTMessage(topic,qos,retain,data,data_len);
   sendPUBLISH(msg);
 }
 
 /** @brief   Publish a message to the server.
  *  @remark  In this version of the function, data is provided as a String object.
- *  @warning If the data sent might include null characters, use the alternate version of this function.
- *  @warning The data sent by this function does not include a trailing null character */
+ *  @warning If the data sent might include NULL characters, use the alternate version of this function.
+ *  @warning The data sent by this function does not include a trailing NULL character */
 bool MQTTClient::publish(String topic, String data, qos_t qos, bool retain, bool duplicate) {
   MQTTMessage msg(topic,(byte *)data.c_str(),data.length(),qos,retain,duplicate);
   sendPUBLISH(msg);
 }
 
 /** @brief    Sends an MQTT publish packet. Do not call directly. */  
-bool MQTTClient::sendPUBLISH(MQTTMessage msg) {
+bool MQTTClient::sendPUBLISH(MQTTMessage* msg) {
   byte flags = 0;
   word packetid;
   long remainingLength;
@@ -606,13 +620,12 @@ bool MQTTClient::sendPUBLISH(MQTTMessage msg) {
       }
 
       if (result && (qos > 0)) {
-        queuedMessage* qm = malloc(sizeof(queuedMessage_t));
+        queuedMessage_t* qm = malloc(sizeof(queuedMessage_t));
         qm->packetid = packetid;
         qm->timeout = MQTT_PACKET_TIMEOUT;
         qm->retries = 0;
         qm->message = msg;
         PUBLISHQueue.push(qm);
-        sendPUBLISH(msg);
       }
 
       return result;
@@ -793,7 +806,7 @@ bool MQTTClient::sendPUBREL(word packetid) {
       qm->packetid = packetid;
       qm->timeout  = MAX_PACKET_TIMEOUT;
       qm->retries  = 0;
-      qm->message  = null;
+      qm->message  = NULL;
       PUBRELQueue.push(packetid);
     }
     return result;

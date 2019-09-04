@@ -5,11 +5,9 @@
  * to be an MQTT server listening to the other end of the serial port.
  */
 
-MQTTClient mqtt;
+MQTTClient mqtt(&Serial);
  
 void setup() {
-  Serial.begin(115200);
-  mqtt.stream = &Serial;
   mqtt.connect("Example","","",true);
 }
 
@@ -26,7 +24,7 @@ void loop() {
         mqtt.intervalTimer();
         c = 0;
         int a0 = analogRead(A0);
-        mqtt.publish("Example/A0",itoa(a0,buffer,10),qtAT_MOST_ONCE,true,false);
+        mqtt.publish("Example/A0",(byte *)itoa(a0,buffer,10),strlen(buffer),qtAT_MOST_ONCE,true);
       }
     }
     delay(100);
