@@ -184,9 +184,8 @@ struct willMessage_t {
 typedef willMessage_t connectMessage_t;
 
 class MQTTBase {
-  private:
-    Stream* stream;
   protected:
+    Stream* stream;
     bool readWord(word *value);
     bool writeWord(const word value);
     bool readRemainingLength(long *value);
@@ -244,7 +243,7 @@ class MQTTClient: public MQTTBase {
     virtual void receiveMessage(String topic, String data, bool retain, bool duplicate) {};
     // Main Interface Methods
     bool connect(const String& clientID, const String& username, const String& password, const bool cleanSession = false, const word keepAlive = MQTT_DEFAULT_KEEPALIVE);
-    bool disconnect();
+    void disconnect();
     bool subscribe(word packetid, const String& filter, qos_t qos = qtAT_MOST_ONCE);
     bool unsubscribe(word packetid, const String& filter);
     bool publish(const String& topic, const byte* data, const word data_len, const qos_t qos = qtAT_MOST_ONCE, const bool retain=false);

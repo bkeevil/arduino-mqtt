@@ -1,32 +1,41 @@
 #include "mqtt.h"
 
-/* This is the most minimalistic example possible. It reads A0 once per second and publishes the 
- * results as an MQTT packet over the serial port. It will not run unless there happens
- * to be an MQTT server listening to the other end of the serial port.
+/** @brief   This is the most minimalistic example possible. 
+ *  @details It reads A0 once per second and publishes the results as an MQTT packet over 
+ *           the serial port. It will not run unless there happens to be an MQTT server 
+ *           listening to the other end of the serial port.
  */
 
 MQTTClient mqtt(&Serial);
- 
+
+char data[10];
+const String topic("Example/A0");
+const String clientid("Example");
+const String username("");
+const String password("");
+
 void setup() {
-  mqtt.connect("Example","","",true);
+  Serial.begin(115200);
+  mqtt.connect(clientid,username,password,true);
 }
 
 void loop() {
   static int c = 0;
-  char buffer[11];
-  
-  if (Serial.available()) {
-    mqtt.dataAvailable();
+
+  if (Serial.available() > 1) {
+    mqtt.dataAvailable();     // This needs to be called when a useful amount of serial 
+                              // data is available in the serial buffer
   } else {
-    if (mqtt.isConnected) {
-      c++;
-      if (c==10) {
-        mqtt.intervalTimer();
-        c = 0;
-        int a0 = analogRead(A0);
-        mqtt.publish("Example/A0",(byte *)itoa(a0,buffer,10),strlen(buffer),qtAT_MOST_ONCE,true);
+    c++;
+    if (c==10) {
+      c = 0;
+      mqtt.intervalTimer();   // This needs to be called approximately once per second
+                              // irregardless of whether the client is connected
+      if (mqtt.isConnected) {        
+        itoa(analogRead(A0),data,9);
+        mqtt.publish(topic,(const byte *)data,strlen(data),qtAT_MOST_ONCE);
       }
-    }
-    delay(100);
+    }  
+    delay(95);
   }
 }

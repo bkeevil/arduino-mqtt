@@ -295,10 +295,10 @@ bool MQTTBase::writeStr(const String& str) {
 
 /* MQTT Client */
 
-MQTTClient::MQTTClient(Stream* stream) {
-  PUBLISHQueue = new PUBLISHQueue(this); 
-  PUBRECQueue  = new PUBRECQueue(this);
-  PUBRELQueue  = new PUBRELQueue(this);
+MQTTClient::MQTTClient(Stream* stream): MQTTBase(stream) {
+  PUBLISHQueue = new MQTTPUBLISHQueue(this); 
+  PUBRECQueue  = new MQTTPUBRECQueue(this);
+  PUBRELQueue  = new MQTTPUBRELQueue(this);
 }
 
 MQTTClient::~MQTTClient() {
@@ -310,13 +310,13 @@ MQTTClient::~MQTTClient() {
 void MQTTClient::reset() {
   pingIntervalRemaining = 0;
   pingCount = 0;
-  PUBRECQueue.clear();
-  PUBLISHQueue.clear();
-  PUBRELQueue.clear();
+  PUBRECQueue->clear();
+  PUBLISHQueue->clear();
+  PUBRELQueue->clear();
   isConnected = false;
 }
 
-bool MQTTClient::connect(const String clientID&, const String username&, const String password&, const bool cleanSession = false, const word keepAlive = MQTT_DEFAULT_KEEPALIVE) {
+bool MQTTClient::connect(const String& clientID, const String& username, const String& password, const bool cleanSession, const word keepAlive) {
   byte flags;
   word rl;      // Remaining Length
 
@@ -343,19 +343,19 @@ bool MQTTClient::connect(const String clientID&, const String username&, const S
   flags |= (willMessage.qos << 3);
   if (willMessage.enabled) {
     flags |= 4;
-    rl += willMessage.topic.length() + 2 + willMessage.data.length() + 2;
+    rl += willMessage.topic.length() + 2 + willMessage.data_len + 2;
   }
 
   if (cleanSession) {
     flags |= 2;
   }
 
-  if ( (stream->write(0x10) != 1) ||
+  if ( (stream->write((byte)0x10) != 1) ||
        (!writeRemainingLength(rl)) ||
-       (stream->write(0) != 1) ||
-       (stream->write(4) != 1) ||
+       (stream->write((byte)0) != 1) ||
+       (stream->write((byte)4) != 1) ||
        (stream->write("MQTT") != 4) ||
-       (stream->write(4) != 1) 
+       (stream->write((byte)4) != 1) 
      ) return false;
 
   if ( (stream->write(flags) != 1) ||
@@ -364,7 +364,7 @@ bool MQTTClient::connect(const String clientID&, const String username&, const S
      ) return false;
 
   if (willMessage.enabled) {
-    if (!writeStr(willMessage.topic) || (stream->write(willMessage.data,willMessage.data_len) != willMessage.data_len) {
+    if (!writeStr(willMessage.topic) || (stream->write(willMessage.data,willMessage.data_len) != willMessage.data_len)) {
       return false;
     }
   }
@@ -388,13 +388,12 @@ bool MQTTClient::connect(const String clientID&, const String username&, const S
 
 byte MQTTClient::recvCONNACK() {
   byte b;
-  int i;
   bool sessionPresent = false;
   byte returnCode = MQTT_CONNACK_SUCCESS;    // Default return code is success
 
   if (isConnected) return MQTT_ERROR_ALREADY_CONNECTED;
 
-  i = stream->read();
+  int i = stream->read();
   if (i > -1) {
     sessionPresent = (i == 1);
   } else {
@@ -434,8 +433,8 @@ byte MQTTClient::recvCONNACK() {
 
 /** @brief Disconnects the MQTT connection */
 void MQTTClient::disconnect() {
-  stream->write(0xE0);
-  stream->write(0);
+  stream->write((byte)0xE0);
+  stream->write((byte)0);
   isConnected = false;
 }
 
@@ -449,8 +448,8 @@ void MQTTClient::disconnected() {
 bool MQTTClient::sendPINGREQ() {
   bool result;
   if (isConnected) {
-    result = (stream->write(12 << 4) == 1);
-    result &= (stream->write(0) == 1);
+    result = (stream->write((byte)12 << 4) == 1);
+    result &= (stream->write((byte)0) == 1);
     return result;
   } else {
     return false;
@@ -483,9 +482,9 @@ byte MQTTClient::pingInterval() {
 bool MQTTClient::queueInterval() {
   bool result;
 
-  result = PUBLISHQueue.interval();
-  result &= PUBRECQueue.interval();
-  result &= PUBRELQueue.interval();
+  result = PUBLISHQueue->interval();
+  result &= PUBRECQueue->interval();
+  result &= PUBRELQueue->interval();
 
   return result;
 }
@@ -498,11 +497,11 @@ byte MQTTClient::intervalTimer() {
   }
 }
 
-bool MQTTClient::subscribe(const word packetid, const String filter&, const qos_t qos) {
+bool MQTTClient::subscribe(const word packetid, const String& filter, const qos_t qos) {
   bool result;
 
   if (filter != NULL) {
-    result = (stream->write(0x82) == 1);
+    result = (stream->write((byte)0x82) == 1);
     result &= writeRemainingLength(2 + 2 + 1 + strlen(filter));
     result &= writeWord(packetid);
     result &= writeStr(filter);
