@@ -218,19 +218,22 @@ class MQTTClient: public MQTTBase {
     byte recvPUBREC();
     byte recvPUBREL();
     byte recvPUBCOMP();
-  protected:
+    //
     bool sendPINGREQ();
     bool sendPUBLISH(MQTTMessage* msg);
     bool sendPUBACK(word packetid);
     bool sendPUBREL(word packetid);
     bool sendPUBREC(word packetid);
     bool sendPUBCOMP(word packetid);
+    friend class MQTTPUBLISHQueue;
+    friend class MQTTPUBRECQueue;
+    friend class MQTTPUBRELQueue;
   public:
     willMessage_t willMessage;
     connectMessage_t connectMessage;
     bool isConnected;
     // Constructor/Destructor
-    MQTTClient(Stream* stream) : MQTTBase(stream) {}
+    MQTTClient(Stream* stream);
     ~MQTTClient();
     // Outgoing events - Override in descendant classes
     virtual void connected() {};
