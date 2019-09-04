@@ -201,7 +201,7 @@ class MQTTClient: public MQTTBase {
     MQTTPUBLISHQueue* PUBLISHQueue;         /**< Outgoing QOS1 or QOS2 Publish Messages that have not been acknowledged */
     MQTTPUBRECQueue*  PUBRECQueue;          /**< Incoming QOS2 messages that have not been acknowledged */
     MQTTPUBRELQueue*  PUBRELQueue;          /**< Outgoing QOS2 messages that have not been released */
-    word nextPacketID = MQTT_MIN_PACKETID;
+    word nextPacketID = MQTT_MIN_PACKETID;  /**< Packet IDs 0..255 are used for subscriptions */
     int  pingIntervalRemaining;
     byte pingCount;
     //
@@ -240,7 +240,7 @@ class MQTTClient: public MQTTBase {
     virtual void initSession() {};
     virtual void subscribed(word packetID, byte resultCode) {};
     virtual void unsubscribed(word packetID) {};
-    virtual void receiveMessage(String topic, String data, bool retain, bool duplicate) {};
+    virtual void receiveMessage(String& topic, const uint8_t * data, const size_t data_len, bool retain, bool duplicate) {};
     // Main Interface Methods
     bool connect(const String& clientID, const String& username, const String& password, const bool cleanSession = false, const word keepAlive = MQTT_DEFAULT_KEEPALIVE);
     void disconnect();

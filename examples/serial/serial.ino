@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include "mqtt.h"
 
 /** @brief   This is the most minimalistic example possible. 

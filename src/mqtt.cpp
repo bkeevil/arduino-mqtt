@@ -502,7 +502,7 @@ bool MQTTClient::subscribe(const word packetid, const String& filter, const qos_
 
   if (filter != NULL) {
     result = (stream->write((byte)0x82) == 1);
-    result &= writeRemainingLength(2 + 2 + 1 + strlen(filter));
+    result &= writeRemainingLength(2 + 2 + 1 + filter.length());
     result &= writeWord(packetid);
     result &= writeStr(filter);
     result &= (stream->write(qos) == 1);
@@ -545,12 +545,12 @@ byte MQTTClient::recvSUBACK(long remainingLength) {
   }
 }
 
-bool MQTTClient::unsubscribe(word packetid, char *filter) {
+bool MQTTClient::unsubscribe(word packetid, String& filter) {
   bool result;
 
   if (filter != NULL) {
-    result = (stream->write(0xA2) == 1);
-    result &= writeRemainingLength(2+2+strlen(filter));
+    result = (stream->write((byte)0xA2) == 1);
+    result &= writeRemainingLength(2+2+filter.length());
     result &= writeWord(packetid);
     result &= writeStr(filter);
     return result;
