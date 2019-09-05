@@ -105,18 +105,19 @@ class MQTTMessage: Printable, Print {
     bool duplicate;        /**< Set to true if this message is a duplicate copy of a previous message because it has been resent */
     bool retain;           /**< For incoming messages, whether it is being sent because it is a retained 
                                 message. For outgoing messages, tells the server to retain the message. */
-    byte* data;        /**< The data buffer */
+    byte* data;            /**< The data buffer */
     size_t data_len;       /**< The number of valid bytes in the data buffer. Might by < data_size */
     /** @brief  Initialize the Message data. The only required parameter is a topic String */
-    MQTTMessage(String topic, qos_t qos = qtAT_LEAST_ONCE, bool retain = false, byte *data = NULL, size_t data_len = 0) : 
+    MQTTMessage(): qos(qtAT_LEAST_ONCE),retain(false),data(NULL),data_len(0),data_size(0),data_pos(0) {}
+    MQTTMessage(const String& topic, const qos_t qos = qtAT_LEAST_ONCE, const bool retain = false, byte* data = NULL, const size_t data_len = 0) : 
     topic(topic),qos(qos),retain(retain),data(data),data_len(data_len),data_size(data_len),data_pos(data_len) {}
-    virtual size_t printTo(Print& p);  /**< See the Prinatable class in the Arduino documentation */
-    virtual int read();                /**< See the Stream class in the Arduino documentation */
-    virtual int peek();                /**< See the Stream class in the Arduino documentation */ 
-    virtual size_t write(byte b);   /**< Writes a single byte to the end of the data buffer. See the Print class in the Arduino documnetation */
-    virtual size_t write(const byte *buffer, size_t size);         /**< Writes size bytes from buffer to the end of the data buffer. See the Print class in the Arduino documentation */
-    virtual int available() { return data_len - data_pos; }           /**< The number of bytes remaining to be read from the buffer */
-    virtual int availableForWrite() { return data_size - data_pos; }  /**< The number of bytes allocated but not written to */
+    size_t printTo(Print& p) const;  /**< See the Prinatable class in the Arduino documentation */
+    int read();                /**< See the Stream class in the Arduino documentation */
+    int peek();                /**< See the Stream class in the Arduino documentation */ 
+    size_t write(byte b);   /**< Writes a single byte to the end of the data buffer. See the Print class in the Arduino documnetation */
+    size_t write(const byte* buffer, size_t size);         /**< Writes size bytes from buffer to the end of the data buffer. See the Print class in the Arduino documentation */
+    int available() { return data_len - data_pos; }           /**< The number of bytes remaining to be read from the buffer */
+    int availableForWrite() { return data_size - data_pos; }  /**< The number of bytes allocated but not written to */
     void reserve(size_t size);          /**< Reserve size bytes of RAM for the data buffer (Optional) */
     void pack();                        /**< Free any unused RAM */
     void seek(int pos) { data_pos = pos; } /** Set the index from which the next character will be read/written */
@@ -140,34 +141,34 @@ class MQTTMessageQueue {
     int count = 0;
   protected:
     MQTTClient* client;
-    virtual void resend(queuedMessage_t *qm) = 0;
+    virtual void resend(queuedMessage_t* qm) = 0;
   public:
     MQTTMessageQueue(MQTTClient* client) : client(client) {}
     ~MQTTMessageQueue() { clear(); }
     int getCount() { return count; }
     void clear();
     bool interval();
-    void push(queuedMessage_t *qm);
+    void push(queuedMessage_t* qm);
     queuedMessage_t* pop();
 };
 
 class MQTTPUBLISHQueue: public MQTTMessageQueue {
   protected:
-    virtual void resend(queuedMessage_t *qm);
+    virtual void resend(queuedMessage_t* qm);
   public:
     MQTTPUBLISHQueue(MQTTClient* client) : MQTTMessageQueue(client) {}
 };
 
 class MQTTPUBRECQueue: public MQTTMessageQueue {
   protected:
-    virtual void resend(queuedMessage_t *qm);
+    virtual void resend(queuedMessage_t* qm);
   public:
     MQTTPUBRECQueue(MQTTClient* client) : MQTTMessageQueue(client) {}    
 };
 
 class MQTTPUBRELQueue: public MQTTMessageQueue {
   protected:
-    virtual void resend(queuedMessage_t *qm);
+    virtual void resend(queuedMessage_t* qm);
   public:
     MQTTPUBRELQueue(MQTTClient* client) : MQTTMessageQueue(client) {}    
 };
@@ -186,9 +187,9 @@ typedef willMessage_t connectMessage_t;
 class MQTTBase {
   protected:
     Stream* stream;
-    bool readWord(word *value);
+    bool readWord(word* value);
     bool writeWord(const word value);
-    bool readRemainingLength(long *value);
+    bool readRemainingLength(long* value);
     bool writeRemainingLength(const long value);
     bool writeStr(const String& str);
     bool readStr(String& str);
@@ -210,9 +211,9 @@ class MQTTClient: public MQTTBase {
     bool queueInterval();
     //
     byte recvCONNACK();
-    byte recvSUBACK(long remainingLength);
+    byte recvSUBACK(const long remainingLength);
     byte recvUNSUBACK();
-    byte recvPUBLISH(byte flags, long remainingLength);
+    byte recvPUBLISH(const byte flags, const long remainingLength);
     byte recvPUBACK();
     byte recvPUBREC();
     byte recvPUBREL();
@@ -220,10 +221,10 @@ class MQTTClient: public MQTTBase {
     //
     bool sendPINGREQ();
     bool sendPUBLISH(MQTTMessage* msg);
-    bool sendPUBACK(word packetid);
-    bool sendPUBREL(word packetid);
-    bool sendPUBREC(word packetid);
-    bool sendPUBCOMP(word packetid);
+    bool sendPUBACK(const word packetid);
+    bool sendPUBREL(const word packetid);
+    bool sendPUBREC(const word packetid);
+    bool sendPUBCOMP(const word packetid);
     friend class MQTTPUBLISHQueue;
     friend class MQTTPUBRECQueue;
     friend class MQTTPUBRELQueue;
@@ -238,15 +239,15 @@ class MQTTClient: public MQTTBase {
     virtual void connected() {};
     virtual void disconnected();
     virtual void initSession() {};
-    virtual void subscribed(word packetID, byte resultCode) {};
-    virtual void unsubscribed(word packetID) {};
-    virtual void receiveMessage(String& topic, const uint8_t * data, const size_t data_len, bool retain, bool duplicate) {};
+    virtual void subscribed(const word packetID, const byte resultCode) {};
+    virtual void unsubscribed(const word packetID) {};
+    virtual void receiveMessage(const String& topic, const byte* data, const size_t data_len, const bool retain, const bool duplicate) {};
     // Main Interface Methods
     bool connect(const String& clientID, const String& username, const String& password, const bool cleanSession = false, const word keepAlive = MQTT_DEFAULT_KEEPALIVE);
     void disconnect();
-    bool subscribe(word packetid, const String& filter, qos_t qos = qtAT_MOST_ONCE);
-    bool unsubscribe(word packetid, const String& filter);
-    bool publish(const String& topic, const byte* data, const word data_len, const qos_t qos = qtAT_MOST_ONCE, const bool retain=false);
+    bool subscribe(const word packetid, const String& filter, const qos_t qos = qtAT_MOST_ONCE);
+    bool unsubscribe(const word packetid, const String& filter);
+    bool publish(const String& topic, byte* data = NULL, const size_t data_len = 0, const qos_t qos = qtAT_MOST_ONCE, const bool retain=false);
     bool publish(const String& topic, const String& data, const qos_t qos = qtAT_MOST_ONCE, const bool retain=false);
     // Incoming events - Call from your application 
     byte dataAvailable(); /**< Needs to be called whenever there is data available on the connection */

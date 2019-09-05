@@ -34,7 +34,7 @@ void loop() {
                               // irregardless of whether the client is connected
       if (mqtt.isConnected) {        
         itoa(analogRead(A0),data,9);
-        mqtt.publish(topic,(const byte *)data,strlen(data),qtAT_MOST_ONCE);
+        mqtt.publish(topic,(byte *)data,strlen(data),qtAT_MOST_ONCE);
       }
     }  
     delay(95);
