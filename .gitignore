@@ -1,5 +1,5 @@
 arduino.json
 c_cpp_properties.json
 .development
-extras
 build
+extras/docs
