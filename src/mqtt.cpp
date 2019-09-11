@@ -1,11 +1,7 @@
 #include "mqtt.h"
 
-/**
- * @brief Prints the data buffer to any object descended from the Print class 
- * 
- * @param p The object to print to
- * @return size_t The number of bytes printed
- */
+/* MQTTMessage */
+
 size_t MQTTMessage::printTo(Print& p) const {
   size_t pos;
   for (pos=0;pos<data_len;pos++) { 
@@ -14,11 +10,6 @@ size_t MQTTMessage::printTo(Print& p) const {
   return data_len;
 }
 
-/**
- * @brief Pre-allocate bytes in the data buffer to prevent reallocation and fragmentation
- * 
- * @param size Number of bytes to reserve
- */
 void MQTTMessage::reserve(size_t size) {
   if (data_size == 0) {
     data = (byte*) malloc(size);
@@ -28,10 +19,6 @@ void MQTTMessage::reserve(size_t size) {
   data_size = size;
 }
 
-/**
- * @brief Call after writing the data buffer is done to free any extra reserved memory
- * 
- */
 void MQTTMessage::pack() {
   if (data_size > data_len) {
     if (data_len == 0) {
@@ -44,11 +31,6 @@ void MQTTMessage::pack() {
   }
 }
 
-/**
- * @brief Reads a byte from the data buffer and advance to the next character
- * 
- * @return int The byte read, or -1 if there is no more data
- */
 int MQTTMessage::read() {
   if (data_pos < data_len) {
     return data[data_pos++];
@@ -57,11 +39,6 @@ int MQTTMessage::read() {
   }
 }
 
-/**
- * @brief Read a byte from the data buffer without advancing to the next character
- * 
- * @return int The byte read, or -1 if there is no more data
- */
 int MQTTMessage::peek() {
   if (data_pos < data_len) {
     return data[data_pos];
@@ -70,12 +47,6 @@ int MQTTMessage::peek() {
   }
 }
 
-/**
- * @brief Writes a byte to the end of the data buffer
- * 
- * @param c The byte to be written
- * @return size_t The number of bytes written
- */
 size_t MQTTMessage::write(const byte c) {
   data_len++;
   if (data_size == 0) {
@@ -88,13 +59,6 @@ size_t MQTTMessage::write(const byte c) {
   return 1;
 }
  
-/**
- * @brief Writes a block of data to the data buffer
- * 
- * @param buffer The data to be written
- * @param size The size of the data to be written
- * @return size_t The number of bytes actually written to the buffer
- */
 size_t MQTTMessage::write(const byte* buffer, const size_t size) {
   data_len += size;
    if (data_size == 0) {
@@ -107,7 +71,7 @@ size_t MQTTMessage::write(const byte* buffer, const size_t size) {
   return size;
 }
 
-/* MQTT Message Queue */
+/* MQTTMessageQueue */
 
 void MQTTMessageQueue::clear() {
   queuedMessage_t* ptr = first;
@@ -139,7 +103,6 @@ bool MQTTMessageQueue::interval() {
       }
     }
   }
-
   return result;
 }
 
@@ -168,29 +131,21 @@ queuedMessage_t* MQTTMessageQueue::pop() {
   }
 }
 
-/** @brief Resends the PUBLISH message with the duplicate flag set to true */
 void MQTTPUBLISHQueue::resend(queuedMessage_t* qm) { 
   qm->message->duplicate = true; 
   client->sendPUBLISH(qm->message); 
 }
 
-/** @brief Resends the PUBREC message */
 void MQTTPUBRECQueue::resend(queuedMessage_t* qm) { 
   client->sendPUBREC(qm->packetid); 
 }
 
-/** @brief Resends the PUBREL message */
 void MQTTPUBRELQueue::resend(queuedMessage_t* qm) { 
   client->sendPUBREL(qm->packetid); 
 }
 
 /* MQTTBase */
 
-/** @brief  Reads the remaining length field of an MQTT packet 
- *  @param  value Receives the remaining length
- *  @return True if successful, false otherwise
- *  @remark See the MQTT 3.1.1 specifications for the format of the remaining length field
-*/
 bool MQTTBase::readRemainingLength(long* value) {
   long multiplier = 1;
   int i;
@@ -213,11 +168,6 @@ bool MQTTBase::readRemainingLength(long* value) {
   return true;
 }
 
-/** @brief  Writes the remaining length field of an MQTT packet
- *  @param  value The remaining length to write
- *  @return True if successful, false otherwise 
- *  @remark See the MQTT 3.1.1 specification for the format of the remaining length field
- */
 bool MQTTBase::writeRemainingLength(const long value) {
   byte encodedByte;
   long lvalue;
@@ -235,11 +185,7 @@ bool MQTTBase::writeRemainingLength(const long value) {
   } while (lvalue > 0);
   return true;
 }
-
-/** @brief  Reads a word from the stream in big endian order 
- *  @param  A pointer to a variable that will receive the outgoing word
- *  @return True iff two bytes were read from the stream
- */ 
+ 
 bool MQTTBase::readWord(word* value) {
   int i;
   byte b;
@@ -260,10 +206,6 @@ bool MQTTBase::readWord(word* value) {
   }
 }
 
-/** @brief  Writes a word to the stream in big endian order 
- *  @param  word  The word to write to the Stream
- *  @return bool  Returns true iff both bytes were successfully written to the stream
-*/
 bool MQTTBase::writeWord(const word value) {
   byte b = value >> 8;
   if (stream.write(b) == 1) {
@@ -278,7 +220,6 @@ bool MQTTBase::writeWord(const word value) {
   }
 }
 
-/** @brief    Reads a UTF8 string from the stream in the format required by the MQTT protocol */
 bool MQTTBase::readStr(String& str) {
   word len;
 
@@ -293,7 +234,6 @@ bool MQTTBase::readStr(String& str) {
   }
 }
 
-/** @brief    Writes a UTF8 string to the stream in the format required by the MQTT protocol */
 bool MQTTBase::writeStr(const String& str) {
   word len;
 
@@ -443,15 +383,12 @@ byte MQTTClient::recvCONNACK() {
   return MQTT_ERROR_UNKNOWN;
 }
 
-/** @brief Disconnects the MQTT connection */
 void MQTTClient::disconnect() {
   stream.write((byte)0xE0);
   stream.write((byte)0);
   isConnected = false;
 }
 
-/** @brief Called when the MQTT server terminates the connection
- *  @details Override disconnected() to perform additional actions when the the server terminates the MQTT connection */
 void MQTTClient::disconnected() {
   isConnected = false;
   pingIntervalRemaining = 0;
@@ -469,7 +406,6 @@ bool MQTTClient::sendPINGREQ() {
 }
 
 byte MQTTClient::pingInterval() {
-  //Serial.print("pingIntervalRemaining="); Serial.println(pingIntervalRemaining);
   if (pingIntervalRemaining == 1) {
     if (pingCount >= 2) {
       pingCount = 0;
@@ -530,22 +466,16 @@ byte MQTTClient::recvSUBACK(const long remainingLength) {
   long rl;
   word packetid;
 
-  //Serial.println("recvSUBACK");
-  //Serial.print("remaininglength="); Serial.println(remainingLength);
-
   if (!isConnected) {
     return MQTT_ERROR_NOT_CONNECTED;
   }
 
   if (readWord(&packetid)) {
-    //Serial.print("packetid="); Serial.println(packetid);
     rl = remainingLength-2;
-    //Serial.print("remaininglength="); Serial.println(rl);
     while (rl-- > 0) {
       i = stream.read();
       if (i > -1) {
         rc = i;
-        //Serial.print("subscribed "); Serial.print(packetid); Serial.print(" "); Serial.println(rc);
         subscribed(packetid,rc);
       } else {
         return MQTT_ERROR_PAYLOAD_INVALID;
@@ -584,24 +514,26 @@ byte MQTTClient::recvUNSUBACK() {
   }
 }
 
-/** @brief   Publish a message to the server.
- *  @remark  In this version of the function, data is provided as a pointer to a buffer.
- *  @warning The data sent does not include the trailing NULL character */
 bool MQTTClient::publish(const String& topic, byte* data, const size_t data_len, const qos_t qos, const bool retain) {
-  MQTTMessage* msg = new MQTTMessage(topic,qos,retain,data,data_len);
-  sendPUBLISH(msg);
+  MQTTMessage* msg = new MQTTMessage();
+  msg->topic = topic;
+  msg->qos = qos;
+  msg->retain = retain;
+  msg->data = data;
+  msg->data_len = data_len;
+  return sendPUBLISH(msg);
 }
 
-/** @brief   Publish a message to the server.
- *  @remark  In this version of the function, data is provided as a String object.
- *  @warning If the data sent might include NULL characters, use the alternate version of this function.
- *  @warning The data sent by this function does not include a trailing NULL character */
 bool MQTTClient::publish(const String& topic, const String& data, const qos_t qos, const bool retain) {
-  MQTTMessage* msg = new MQTTMessage(topic,qos,retain,(byte*)data.c_str(),data.length());
-  sendPUBLISH(msg);
+  MQTTMessage* msg = new MQTTMessage();
+  msg->topic = topic;
+  msg->qos = qos;
+  msg->retain = retain;
+  msg->data = (byte*)data.c_str();
+  msg->data_len = data.length();
+  return sendPUBLISH(msg);
 }
 
-/** @brief    Sends an MQTT publish packet. Do not call directly. */  
 bool MQTTClient::sendPUBLISH(MQTTMessage* msg) {
   byte flags = 0;
   word packetid;
@@ -611,7 +543,6 @@ bool MQTTClient::sendPUBLISH(MQTTMessage* msg) {
   if (msg != NULL) {
     if ((msg->topic != NULL) && (msg->topic.length()>0) && (msg->qos<3) && (isConnected)) {
 
-      //Serial.print("sendPUBLISH topic="); Serial.print(msg->topic); Serial.print(" data="); Serial.print(msg); Serial.print(" qos="); Serial.println(msg->qos);
       flags |= (msg->qos << 1);
       if (msg->duplicate) {
         flags |= 8;
@@ -696,7 +627,7 @@ byte MQTTClient::recvPUBLISH(const byte flags, const long remainingLength) {
 
   if (stream.readBytes(msg->data,i) == i) {
     if (msg->qos != qtEXACTLY_ONCE) {
-      receiveMessage(msg->topic,msg->data,msg->data_len,msg->retain,msg->duplicate);
+      receiveMessage(*msg);
       if (msg->qos==qtAT_LEAST_ONCE) {
         sendPUBACK(packetid);
       }
@@ -803,7 +734,7 @@ byte MQTTClient::recvPUBREL() {
       do {
         qm = PUBRECQueue->pop();
         if (qm->packetid == packetid) {
-          receiveMessage(qm->message->topic,qm->message->data,qm->message->data_len,qm->message->retain,qm->message->duplicate);
+          receiveMessage(*qm->message);
           delete qm->message;
           delete(qm);
           if (sendPUBCOMP(packetid)) {

@@ -104,7 +104,8 @@ mqtt.publish(someTopic,(byte *)strBuffer,strlen(strBuffer));
 You can also create and send a MQTTMessage object directly. This lets you use the Print interface to write complex data to the data buffer.
 
 ```
-MQTTMessage msg("Some/Topic");
+MQTTMessage msg()
+msg.topic = "Some/Topic";
 msg.qos = qtAT_MOST_ONCE;
 msg.print("{ timestamp: ");
 msg.print(year); 
@@ -124,7 +125,10 @@ To receive a message, override `MQTTClient::receiveMessage()` and provide an eve
 void MyMQTTClient::receiveMessage(const MQTTMessage &msg) {
   Serial.print(msg.topic);
   Serial.print("=");
-  Serial.println(msg); // Prints the contents of the data buffer
+  Serial.println(msg);  // Prints the contents of the data buffer
+  if (msg.topic.compareTo(String("Topic/One")) == 0) {
+    Serial.println("Topic/One Received");
+  }
   MQTTClient::receiveMessage(msg);
 }
 ```
