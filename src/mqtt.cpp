@@ -168,15 +168,18 @@ queuedMessage_t* MQTTMessageQueue::pop() {
   }
 }
 
+/** @brief Resends the PUBLISH message with the duplicate flag set to true */
 void MQTTPUBLISHQueue::resend(queuedMessage_t* qm) { 
   qm->message->duplicate = true; 
   client->sendPUBLISH(qm->message); 
 }
 
+/** @brief Resends the PUBREC message */
 void MQTTPUBRECQueue::resend(queuedMessage_t* qm) { 
   client->sendPUBREC(qm->packetid); 
 }
 
+/** @brief Resends the PUBREL message */
 void MQTTPUBRELQueue::resend(queuedMessage_t* qm) { 
   client->sendPUBREL(qm->packetid); 
 }
@@ -186,6 +189,7 @@ void MQTTPUBRELQueue::resend(queuedMessage_t* qm) {
 /** @brief  Reads the remaining length field of an MQTT packet 
  *  @param  value Receives the remaining length
  *  @return True if successful, false otherwise
+ *  @remark See the MQTT 3.1.1 specifications for the format of the remaining length field
 */
 bool MQTTBase::readRemainingLength(long* value) {
   long multiplier = 1;
@@ -194,7 +198,7 @@ bool MQTTBase::readRemainingLength(long* value) {
 
   *value = 0;
   do {
-    i = stream->read();
+    i = stream.read();
     if (i > -1) {
       encodedByte = i;
       *value += (encodedByte & 127) * multiplier;
@@ -211,7 +215,9 @@ bool MQTTBase::readRemainingLength(long* value) {
 
 /** @brief  Writes the remaining length field of an MQTT packet
  *  @param  value The remaining length to write
- *  @return True if successful, false otherwise */
+ *  @return True if successful, false otherwise 
+ *  @remark See the MQTT 3.1.1 specification for the format of the remaining length field
+ */
 bool MQTTBase::writeRemainingLength(const long value) {
   byte encodedByte;
   long lvalue;
@@ -223,22 +229,25 @@ bool MQTTBase::writeRemainingLength(const long value) {
     if (lvalue > 0) {
       encodedByte |= 128;
     }
-    if (stream->write(encodedByte) != 1) {
+    if (stream.write(encodedByte) != 1) {
       return false;
     }
   } while (lvalue > 0);
   return true;
 }
 
-/** @brief  Reads a word from the stream in big endian order */
+/** @brief  Reads a word from the stream in big endian order 
+ *  @param  A pointer to a variable that will receive the outgoing word
+ *  @return True iff two bytes were read from the stream
+ */ 
 bool MQTTBase::readWord(word* value) {
   int i;
   byte b;
-  i = stream->read();
+  i = stream.read();
   if (i > -1) {
     b = i;
     *value = b << 8;
-    i = stream->read();
+    i = stream.read();
     if (i > -1) {
       b = i;
       *value |= b;
@@ -251,12 +260,15 @@ bool MQTTBase::readWord(word* value) {
   }
 }
 
-/** @brief  Writes a word to the stream in big endian order */
+/** @brief  Writes a word to the stream in big endian order 
+ *  @param  word  The word to write to the Stream
+ *  @return bool  Returns true iff both bytes were successfully written to the stream
+*/
 bool MQTTBase::writeWord(const word value) {
   byte b = value >> 8;
-  if (stream->write(b) == 1) {
+  if (stream.write(b) == 1) {
     b = value & 0xFF;
-    if (stream->write(b) == 1) {
+    if (stream.write(b) == 1) {
       return true;
     } else {
       return false;
@@ -270,10 +282,10 @@ bool MQTTBase::writeWord(const word value) {
 bool MQTTBase::readStr(String& str) {
   word len;
 
-  if (stream->available() < len) {
+  if (stream.available() < len) {
     if (readWord(&len)) {
       str.reserve(len);
-      str = stream->readString();
+      str = stream.readString();
       return (str.length() == len);
     } else {
       return false;
@@ -287,7 +299,7 @@ bool MQTTBase::writeStr(const String& str) {
 
   len = str.length();
   if (writeWord(len)) {
-    return  (stream->print(str) == str.length());
+    return  (stream.print(str) == str.length());
   } else {
     return false;
   }
@@ -295,7 +307,7 @@ bool MQTTBase::writeStr(const String& str) {
 
 /* MQTT Client */
 
-MQTTClient::MQTTClient(Stream* stream): MQTTBase(stream) {
+MQTTClient::MQTTClient(Stream& stream): MQTTBase(stream) {
   PUBLISHQueue = new MQTTPUBLISHQueue(this); 
   PUBRECQueue  = new MQTTPUBRECQueue(this);
   PUBRELQueue  = new MQTTPUBRELQueue(this);
@@ -350,21 +362,21 @@ bool MQTTClient::connect(const String& clientID, const String& username, const S
     flags |= 2;
   }
 
-  if ( (stream->write((byte)0x10) != 1) ||
+  if ( (stream.write((byte)0x10) != 1) ||
        (!writeRemainingLength(rl)) ||
-       (stream->write((byte)0) != 1) ||
-       (stream->write((byte)4) != 1) ||
-       (stream->write("MQTT") != 4) ||
-       (stream->write((byte)4) != 1) 
+       (stream.write((byte)0) != 1) ||
+       (stream.write((byte)4) != 1) ||
+       (stream.write("MQTT") != 4) ||
+       (stream.write((byte)4) != 1) 
      ) return false;
 
-  if ( (stream->write(flags) != 1) ||
+  if ( (stream.write(flags) != 1) ||
        (!writeWord(keepAlive)) ||
        (!writeStr(clientID))
      ) return false;
 
   if (willMessage.enabled) {
-    if (!writeStr(willMessage.topic) || (stream->write(willMessage.data,willMessage.data_len) != willMessage.data_len)) {
+    if (!writeStr(willMessage.topic) || (stream.write(willMessage.data,willMessage.data_len) != willMessage.data_len)) {
       return false;
     }
   }
@@ -393,7 +405,7 @@ byte MQTTClient::recvCONNACK() {
 
   if (isConnected) return MQTT_ERROR_ALREADY_CONNECTED;
 
-  int i = stream->read();
+  int i = stream.read();
   if (i > -1) {
     sessionPresent = (i == 1);
   } else {
@@ -402,7 +414,7 @@ byte MQTTClient::recvCONNACK() {
 
   if ((b & 0xFE) > 0) return MQTT_ERROR_PACKET_INVALID;
 
-  i = stream->read();
+  i = stream.read();
   if (i > -1) {
     returnCode = i;
   } else {
@@ -433,8 +445,8 @@ byte MQTTClient::recvCONNACK() {
 
 /** @brief Disconnects the MQTT connection */
 void MQTTClient::disconnect() {
-  stream->write((byte)0xE0);
-  stream->write((byte)0);
+  stream.write((byte)0xE0);
+  stream.write((byte)0);
   isConnected = false;
 }
 
@@ -448,8 +460,8 @@ void MQTTClient::disconnected() {
 bool MQTTClient::sendPINGREQ() {
   bool result;
   if (isConnected) {
-    result = (stream->write((byte)12 << 4) == 1);
-    result &= (stream->write((byte)0) == 1);
+    result = (stream.write((byte)12 << 4) == 1);
+    result &= (stream.write((byte)0) == 1);
     return result;
   } else {
     return false;
@@ -501,11 +513,11 @@ bool MQTTClient::subscribe(const word packetid, const String& filter, const qos_
   bool result;
 
   if (filter != NULL) {
-    result = (stream->write((byte)0x82) == 1);
+    result = (stream.write((byte)0x82) == 1);
     result &= writeRemainingLength(2 + 2 + 1 + filter.length());
     result &= writeWord(packetid);
     result &= writeStr(filter);
-    result &= (stream->write(qos) == 1);
+    result &= (stream.write(qos) == 1);
     return result;
   } else {
     return false;
@@ -530,7 +542,7 @@ byte MQTTClient::recvSUBACK(const long remainingLength) {
     rl = remainingLength-2;
     //Serial.print("remaininglength="); Serial.println(rl);
     while (rl-- > 0) {
-      i = stream->read();
+      i = stream.read();
       if (i > -1) {
         rc = i;
         //Serial.print("subscribed "); Serial.print(packetid); Serial.print(" "); Serial.println(rc);
@@ -549,7 +561,7 @@ bool MQTTClient::unsubscribe(const word packetid, const String& filter) {
   bool result;
 
   if (filter != NULL) {
-    result = (stream->write((byte)0xA2) == 1);
+    result = (stream.write((byte)0xA2) == 1);
     result &= writeRemainingLength(2+2+filter.length());
     result &= writeWord(packetid);
     result &= writeStr(filter);
@@ -573,7 +585,7 @@ byte MQTTClient::recvUNSUBACK() {
 }
 
 /** @brief   Publish a message to the server.
- *  @remark  In this version of the function, data is provided as a String object.
+ *  @remark  In this version of the function, data is provided as a pointer to a buffer.
  *  @warning The data sent does not include the trailing NULL character */
 bool MQTTClient::publish(const String& topic, byte* data, const size_t data_len, const qos_t qos, const bool retain) {
   MQTTMessage* msg = new MQTTMessage(topic,qos,retain,data,data_len);
@@ -619,7 +631,7 @@ bool MQTTClient::sendPUBLISH(MQTTMessage* msg) {
       }
 
       result = (
-        (stream->write(0x30 | flags) == 1) &&
+        (stream.write(0x30 | flags) == 1) &&
         writeRemainingLength(remainingLength) &&
         writeStr(msg->topic)
       );
@@ -629,7 +641,7 @@ bool MQTTClient::sendPUBLISH(MQTTMessage* msg) {
       }
 
       if (result && (msg->data != NULL)) {
-        result = (stream->write(msg->data,msg->data_len) == msg->data_len);
+        result = (stream.write(msg->data,msg->data_len) == msg->data_len);
       }
 
       if (result && (msg->qos > 0)) {
@@ -682,7 +694,7 @@ byte MQTTClient::recvPUBLISH(const byte flags, const long remainingLength) {
   msg->reserve(i);
   msg->data_len = i;
 
-  if (stream->readBytes(msg->data,i) == i) {
+  if (stream.readBytes(msg->data,i) == i) {
     if (msg->qos != qtEXACTLY_ONCE) {
       receiveMessage(msg->topic,msg->data,msg->data_len,msg->retain,msg->duplicate);
       if (msg->qos==qtAT_LEAST_ONCE) {
@@ -728,11 +740,11 @@ byte MQTTClient::recvPUBACK() {
   }
 }
 
-bool MQTTClient::sendPUBACK(word packetid) {
+bool MQTTClient::sendPUBACK(const word packetid) {
   bool result;
   if (isConnected) {
-    result =  (stream->write(0x40) == 1);
-    result &= (stream->write(0x02) == 1);
+    result =  (stream.write(0x40) == 1);
+    result &= (stream.write(0x02) == 1);
     result &= writeWord(packetid);
     return result;
   } else {
@@ -768,11 +780,11 @@ byte MQTTClient::recvPUBREC() {
   }
 }
 
-bool MQTTClient::sendPUBREC(word packetid) {
+bool MQTTClient::sendPUBREC(const word packetid) {
   bool result;
   if (isConnected) {
-    result =  (stream->write(0x50) == 1);
-    result &= (stream->write(0x02) == 1);
+    result =  (stream.write(0x50) == 1);
+    result &= (stream.write(0x02) == 1);
     result &= writeWord(packetid);
     return result;
   } else {
@@ -809,13 +821,13 @@ byte MQTTClient::recvPUBREL() {
   }
 }
 
-bool MQTTClient::sendPUBREL(word packetid) {
+bool MQTTClient::sendPUBREL(const word packetid) {
   bool result;
   queuedMessage_t* qm;
 
   if (isConnected) {
-    result =  (stream->write(0x62) == 1);
-    result &= (stream->write(0x02) == 1);
+    result =  (stream.write(0x62) == 1);
+    result &= (stream.write(0x02) == 1);
     result &= writeWord(packetid);
     if (result) {
       qm = new queuedMessage_t;
@@ -854,12 +866,12 @@ byte MQTTClient::recvPUBCOMP() {
   }
 }
 
-bool MQTTClient::sendPUBCOMP(word packetid) {
+bool MQTTClient::sendPUBCOMP(const word packetid) {
   bool result;
   if (isConnected) {
-    result = (stream->write(0x70) == 1);
-    result &= (stream->write(0x02) == 1);
-    result &= (stream->write(packetid) == 1);
+    result = (stream.write(0x70) == 1);
+    result &= (stream.write(0x02) == 1);
+    result &= (stream.write(packetid) == 1);
     return result;
   } else {
     return false;
@@ -871,9 +883,9 @@ byte MQTTClient::dataAvailable() {
   byte b;
   byte flags;
   byte packetType;
-  long remainingLength=0; // remaining length
+  long remainingLength=0;
 
-  i = stream->read();
+  i = stream.read();
   if (i > -1) {
     b = i;
     flags = b & 0x0F;
@@ -881,12 +893,11 @@ byte MQTTClient::dataAvailable() {
   } else {
     return MQTT_ERROR_INSUFFICIENT_DATA;
   }
-  //Serial.print("rlavailable="); Serial.println(stream->available());
+  
   if (!readRemainingLength(&remainingLength)) {
     return MQTT_ERROR_INSUFFICIENT_DATA;
   }
-  //Serial.print("remainingLength="); Serial.println(remainingLength);
-
+  
   pingIntervalRemaining = MQTT_DEFAULT_PING_INTERVAL;
   pingCount = 0;
 

@@ -1,4 +1,9 @@
-/** @file       mqtt.h
+/** @mainpage   Bond's MQTT Client Library for Arduino
+ *  @brief      This library provides an MQTT 3.1.1 client that supports all QoS levels.
+ *  @details    To use this library, create a descendant of MQTTClient that implements the
+ *              virtual event methods. See the example program to see how to do this.
+ *  @remarks    This documentation is automatically generated using Doxygen from comments in the source files
+ *  @file       mqtt.h
  *  @brief      An MQTT 3.1.1 client library for the Arduino framework
  *  @author     Bond Keevil
  *  @version    2.0
@@ -22,21 +27,6 @@
 #define MQTT_PACKET_RETRIES                       2 /**< Number of retry attempts to send a packet before the connection is considered dead */
 #define MQTT_MESSAGE_ALLOC_BLOCK_SIZE             8 /**< When writing a message data buffer, this much memory will be allocated at a time */
 
-#define ptBROKERCONNECT                           0
-#define ptCONNECT                                 1
-#define ptCONNACK                                 2
-#define ptPUBLISH                                 3
-#define ptPUBACK                                  4
-#define ptPUBREC                                  5
-#define ptPUBREL                                  6
-#define ptPUBCOMP                                 7
-#define ptSUBSCRIBE                               8
-#define ptSUBACK                                  9
-#define ptUNSUBSCRIBE                            10
-#define ptUNSUBACK                               11
-#define ptPINGREQ                                12
-#define ptPINGRESP                               13
-#define ptDISCONNECT                             14
 
 #define MQTT_CONNACK_SUCCESS                      0
 #define MQTT_CONNACK_UNACCEPTABLE_PROTOCOL        1
@@ -77,6 +67,25 @@
 
 #define MQTT_ERROR_UNKNOWN                      255
 
+/** @brief Used to identify the type of a received packet */
+enum MQTTPacketType {
+  ptBROKERCONNECT = 0,
+  ptCONNECT = 1,
+  ptCONNACK = 2,
+  ptPUBLISH = 3,
+  ptPUBACK = 4,
+  ptPUBREC = 5,
+  ptPUBREL = 6, 
+  ptPUBCOMP = 7,
+  ptSUBSCRIBE = 8,
+  ptSUBACK = 9,
+  ptUNSUBSCRIBE = 10,
+  ptUNSUBACK = 11,
+  ptPINGREQ = 12,
+  ptPINGRESP = 13,
+  ptDISCONNECT = 14
+};
+
 /** Quality of Service Levels */
 enum qos_t {
   qtAT_MOST_ONCE = 0,           /**< The packet is sent once and may or may not be received by the server */
@@ -85,7 +94,7 @@ enum qos_t {
   qtMAX_VALUE = qtEXACTLY_ONCE
 };
 
-class MQTTClient;
+class MQTTClient;  // Forward declaration
 
 /** @class    MQTTMessage mqtt.h
  *  @brief    Represents an MQTT message that is sent or received 
@@ -94,21 +103,19 @@ class MQTTClient;
  *            a specific memory size. Otherwise memory will be allocated in chunks of 
  *            MQTT_MESSAGE_ALLOC_BLOCK_SIZE bytes. Optionally, call pack() when done to free any 
  *            unused bytes.
+ * @remark    The Print interface is used to write directly to the data buffer. 
  */
 class MQTTMessage: Printable, Print {
-  private: 
-    size_t data_size;      /**< The number of bytes allocated in the data buffer */
-    size_t data_pos;       /**< Index of the next byte to be written */
   public:
     String topic;          /**< The topic of the message */
-    qos_t qos;             /**< Message quality of service level */
+    qos_t qos = qtAT_LEAST_ONCE;             /**< Message quality of service level */
     bool duplicate;        /**< Set to true if this message is a duplicate copy of a previous message because it has been resent */
     bool retain;           /**< For incoming messages, whether it is being sent because it is a retained 
                                 message. For outgoing messages, tells the server to retain the message. */
     byte* data;            /**< The data buffer */
     size_t data_len;       /**< The number of valid bytes in the data buffer. Might by < data_size */
     /** @brief  Initialize the Message data. The only required parameter is a topic String */
-    MQTTMessage(): qos(qtAT_LEAST_ONCE),retain(false),data(NULL),data_len(0),data_size(0),data_pos(0) {}
+    MQTTMessage() {}
     MQTTMessage(const String& topic, const qos_t qos = qtAT_LEAST_ONCE, const bool retain = false, byte* data = NULL, const size_t data_len = 0) : 
     topic(topic),qos(qos),retain(retain),data(data),data_len(data_len),data_size(data_len),data_pos(data_len) {}
     size_t printTo(Print& p) const;  /**< See the Prinatable class in the Arduino documentation */
@@ -121,37 +128,49 @@ class MQTTMessage: Printable, Print {
     void reserve(size_t size);          /**< Reserve size bytes of RAM for the data buffer (Optional) */
     void pack();                        /**< Free any unused RAM */
     void seek(int pos) { data_pos = pos; } /** Set the index from which the next character will be read/written */
+  private: 
+    size_t data_size;      /**< The number of bytes allocated in the data buffer */
+    size_t data_pos;       /**< Index of the next byte to be written */
 };
 
+/** @struct  queuedMessage_t mqtt.h
+ *  @details Structure for message queue linked list 
+ */
 struct queuedMessage_t {
-  word packetid;
-  byte timeout;
-  byte retries;
-  MQTTMessage* message;
-  queuedMessage_t* next;
+  word packetid;          /**< A unique packetID is assigned when a packet is placed in the queue */
+  byte timeout;           /**< Time the packet has been in the queue (in seconds) */
+  byte retries;           /**< Number of times the packet has been retreansmitted */
+  MQTTMessage* message;   /**< The MQTTMessage object that was sent */
+  queuedMessage_t* next;  /**< Pointer to the next structure in the linked list */
 };
 
-/** @brief   Base class for an MQTT message class.
+/** @brief   Base class for managing a linked list of messages
  *  @details Descendant classes that retransmit packets must implement the resend() methods
  */
 class MQTTMessageQueue {
-  private:
-    queuedMessage_t* first = NULL;
-    queuedMessage_t* last  = NULL;
-    int count = 0;
-  protected:
-    MQTTClient* client;
-    virtual void resend(queuedMessage_t* qm) = 0;
   public:
     MQTTMessageQueue(MQTTClient* client) : client(client) {}
     ~MQTTMessageQueue() { clear(); }
-    int getCount() { return count; }
+    int getCount() const { return count; }
     void clear();
     bool interval();
     void push(queuedMessage_t* qm);
     queuedMessage_t* pop();
+  protected:
+    MQTTClient* client;
+    virtual void resend(queuedMessage_t* qm) = 0;
+  private:
+    queuedMessage_t* first = NULL;
+    queuedMessage_t* last  = NULL;
+    int count = 0;
 };
 
+/** @class   MQTTPUBLISHQueue mqtt.h
+ *  @brief   Message queue for QOS1 & QOS2 Messages that have been sent but have not been acknowledged
+ *  @details When a new PUBLISH packet is sent with QOS1 or 2 it is placed in the PUBLISH Queue. 
+ *           In the case of a QOS1 message, it is removed from this queue on receipt of a PUBACK message with a matching packetID.
+ *           In the case of a QOS2 message, it is moved to the PUBREL queue in response to a PUBREC message. 
+ */ 
 class MQTTPUBLISHQueue: public MQTTMessageQueue {
   protected:
     virtual void resend(queuedMessage_t* qm);
@@ -159,6 +178,12 @@ class MQTTPUBLISHQueue: public MQTTMessageQueue {
     MQTTPUBLISHQueue(MQTTClient* client) : MQTTMessageQueue(client) {}
 };
 
+/** @class   MQTTPUBRECQueue mqtt.h
+ *  @brief   Message queue for QOS2 messages that have been received but have not been dispatched.
+ *  @details When a QOS2 message is received it is stored in the PUBREC queue until a PUBREL message is received,
+ *           At which point receiveMessage() is called and the message is removed from the queue.
+ *           If no PUBREL message is recieved, the PUBREC packet is retransmitted. 
+ */
 class MQTTPUBRECQueue: public MQTTMessageQueue {
   protected:
     virtual void resend(queuedMessage_t* qm);
@@ -166,6 +191,11 @@ class MQTTPUBRECQueue: public MQTTMessageQueue {
     MQTTPUBRECQueue(MQTTClient* client) : MQTTMessageQueue(client) {}    
 };
 
+/** @class   MQTTPUBRELQueue mqtt.h
+ *  @brief   Message queue for QOS2 messages where a PUBREC has been recieved and a PUBREL has been sent
+ *  @details The message object is deleted from the queue when a PUBCOMP message with a matching packetID is received
+ *  @warning The message attribute is not used and is always NULL in this queue.          
+ */
 class MQTTPUBRELQueue: public MQTTMessageQueue {
   protected:
     virtual void resend(queuedMessage_t* qm);
@@ -173,6 +203,9 @@ class MQTTPUBRELQueue: public MQTTMessageQueue {
     MQTTPUBRELQueue(MQTTClient* client) : MQTTMessageQueue(client) {}    
 };
 
+/** @struct  willMessage_t mqtt.h
+ *  @brief   Containts information about a will message that is sent by the server when the connection is lost 
+ */
 struct willMessage_t {
   String topic;
   byte* data;
@@ -182,22 +215,60 @@ struct willMessage_t {
   byte qos;
 };
 
+/** @struct  connectMessage_t mqtt.h
+ *  @brief   Contains infomation about a connect message that is sent when a connection is successfully established
+ *  @details Structure is identical to willMessage_t
+ *           This is not part of the MQTT 3.1.1 standard 
+ */
 typedef willMessage_t connectMessage_t;
 
+/** @class   MQTTBase mqtt.h
+ *  @brief   The base class for the MQTTClient class
+ *  @details Provides several protected utility methods for reading/writing data to/from a Stream object as 
+ *           per the 3.1.1 protocol specs 
+ */
 class MQTTBase {
+  public:
+    MQTTBase(Stream& stream): stream(stream) {} /**< @brief The user of the component will supply a reference to an object of the Stream class */
   protected:
-    Stream* stream;
+    Stream& stream;   /**< The network stream to read/write from */
     bool readWord(word* value);
     bool writeWord(const word value);
     bool readRemainingLength(long* value);
     bool writeRemainingLength(const long value);
     bool writeStr(const String& str);
-    bool readStr(String& str);
-  public:
-    MQTTBase(Stream* stream): stream(stream) {}
+    bool readStr(String& str);    
 };
 
+/** @class    MQTTClient mqtt.h
+ *  @brief    The main class for an MQTT client connection
+ *  @details  Create an instance of MQTTClient passing a reference to a Stream object as a constructor parameter
+ */ 
 class MQTTClient: public MQTTBase {
+  public:
+    willMessage_t willMessage;
+    connectMessage_t connectMessage;
+    bool isConnected;
+    // Constructor/Destructor
+    MQTTClient(Stream& stream);
+    ~MQTTClient();
+    // Outgoing events - Override in descendant classes
+    virtual void connected() {};
+    virtual void disconnected();
+    virtual void initSession() {};
+    virtual void subscribed(const word packetID, const byte resultCode) {};
+    virtual void unsubscribed(const word packetID) {};
+    virtual void receiveMessage(const String& topic, const byte* data, const size_t data_len, const bool retain, const bool duplicate) {};
+    // Main Interface Methods
+    bool connect(const String& clientID, const String& username, const String& password, const bool cleanSession = false, const word keepAlive = MQTT_DEFAULT_KEEPALIVE);
+    void disconnect();
+    bool subscribe(const word packetid, const String& filter, const qos_t qos = qtAT_MOST_ONCE);
+    bool unsubscribe(const word packetid, const String& filter);
+    bool publish(const String& topic, byte* data = NULL, const size_t data_len = 0, const qos_t qos = qtAT_MOST_ONCE, const bool retain=false);
+    bool publish(const String& topic, const String& data, const qos_t qos = qtAT_MOST_ONCE, const bool retain=false);
+    // Incoming events - Call from your application 
+    byte dataAvailable(); /**< Needs to be called whenever there is data available on the connection */
+    byte intervalTimer(); /**< Needs to be called once every second */
   private:
     MQTTPUBLISHQueue* PUBLISHQueue;         /**< Outgoing QOS1 or QOS2 Publish Messages that have not been acknowledged */
     MQTTPUBRECQueue*  PUBRECQueue;          /**< Incoming QOS2 messages that have not been acknowledged */
@@ -225,33 +296,10 @@ class MQTTClient: public MQTTBase {
     bool sendPUBREL(const word packetid);
     bool sendPUBREC(const word packetid);
     bool sendPUBCOMP(const word packetid);
+    //  
     friend class MQTTPUBLISHQueue;
     friend class MQTTPUBRECQueue;
     friend class MQTTPUBRELQueue;
-  public:
-    willMessage_t willMessage;
-    connectMessage_t connectMessage;
-    bool isConnected;
-    // Constructor/Destructor
-    MQTTClient(Stream* stream);
-    ~MQTTClient();
-    // Outgoing events - Override in descendant classes
-    virtual void connected() {};
-    virtual void disconnected();
-    virtual void initSession() {};
-    virtual void subscribed(const word packetID, const byte resultCode) {};
-    virtual void unsubscribed(const word packetID) {};
-    virtual void receiveMessage(const String& topic, const byte* data, const size_t data_len, const bool retain, const bool duplicate) {};
-    // Main Interface Methods
-    bool connect(const String& clientID, const String& username, const String& password, const bool cleanSession = false, const word keepAlive = MQTT_DEFAULT_KEEPALIVE);
-    void disconnect();
-    bool subscribe(const word packetid, const String& filter, const qos_t qos = qtAT_MOST_ONCE);
-    bool unsubscribe(const word packetid, const String& filter);
-    bool publish(const String& topic, byte* data = NULL, const size_t data_len = 0, const qos_t qos = qtAT_MOST_ONCE, const bool retain=false);
-    bool publish(const String& topic, const String& data, const qos_t qos = qtAT_MOST_ONCE, const bool retain=false);
-    // Incoming events - Call from your application 
-    byte dataAvailable(); /**< Needs to be called whenever there is data available on the connection */
-    byte intervalTimer(); /**< Needs to be called once every second */
 };
 
 #endif

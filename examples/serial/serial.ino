@@ -7,7 +7,7 @@
  *           listening to the other end of the serial port.
  */
 
-MQTTClient mqtt(&Serial);
+MQTTClient mqtt(Serial);
 
 char data[10];
 const String topic("Example/A0");
