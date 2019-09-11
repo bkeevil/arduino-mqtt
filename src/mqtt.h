@@ -91,6 +91,10 @@ class MQTTClient;  // Forward declaration
  */
 class MQTTMessage: Printable, Print {
   public:
+    MQTTMessage() = default;
+    MQTTMessage(const String& topic_): topic(topic_) {}
+    MQTTMessage(const MQTTMessage& m);
+
     /** @brief The message topic*/
     String topic;         
 
@@ -303,8 +307,7 @@ class MQTTClient: public MQTTBase {
     connectMessage_t connectMessage;
     bool isConnected;
     // Constructor/Destructor
-    MQTTClient(Stream& stream);
-    ~MQTTClient();
+    MQTTClient(Stream& stream): MQTTBase(stream), PUBLISHQueue(this), PUBRECQueue(this), PUBRELQueue(this) {}
     // Outgoing events - Override in descendant classes
     virtual void connected() {};
     
@@ -339,15 +342,15 @@ class MQTTClient: public MQTTBase {
      *  Create a new MQTTMessage object using the "new" operator and pass it to this function. The MQTTClient class
      *  will destroy msg when it is no longer needed.
      *  @warning Do not destroy msg in your program or unexpected results may occur */
-    bool publish(MQTTMessage* msg) { return sendPUBLISH(msg); }
+    bool publish(MQTTMessage& msg) { MQTTMessage* m = new MQTTMessage(msg); return sendPUBLISH(m); }
 
     // Incoming events - Call from your application 
     byte dataAvailable(); /**< Needs to be called whenever there is data available on the connection */
     byte intervalTimer(); /**< Needs to be called once every second */
   private:
-    MQTTPUBLISHQueue* PUBLISHQueue;         /**< Outgoing QOS1 or QOS2 Publish Messages that have not been acknowledged */
-    MQTTPUBRECQueue*  PUBRECQueue;          /**< Incoming QOS2 messages that have not been acknowledged */
-    MQTTPUBRELQueue*  PUBRELQueue;          /**< Outgoing QOS2 messages that have not been released */
+    MQTTPUBLISHQueue  PUBLISHQueue;         /**< Outgoing QOS1 or QOS2 Publish Messages that have not been acknowledged */
+    MQTTPUBRECQueue   PUBRECQueue;          /**< Incoming QOS2 messages that have not been acknowledged */
+    MQTTPUBRELQueue   PUBRELQueue;          /**< Outgoing QOS2 messages that have not been released */
     word nextPacketID = MQTT_MIN_PACKETID;  /**< Packet IDs 0..255 are used for subscriptions */
     int  pingIntervalRemaining;
     byte pingCount;

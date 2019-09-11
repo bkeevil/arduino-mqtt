@@ -2,6 +2,11 @@
 
 /* MQTTMessage */
 
+MQTTMessage::MQTTMessage(const MQTTMessage& m): topic(m.topic), qos(m.qos), duplicate(m.duplicate), retain(m.retain), data_len(m.data_len), data_size(m.data_len), data_pos(m.data_len) {
+  data = (byte*) malloc(data_len);
+  memcpy(data,m.data,data_len);
+}
+
 size_t MQTTMessage::printTo(Print& p) const {
   size_t pos;
   for (pos=0;pos<data_len;pos++) { 
@@ -247,24 +252,12 @@ bool MQTTBase::writeStr(const String& str) {
 
 /* MQTT Client */
 
-MQTTClient::MQTTClient(Stream& stream): MQTTBase(stream) {
-  PUBLISHQueue = new MQTTPUBLISHQueue(this); 
-  PUBRECQueue  = new MQTTPUBRECQueue(this);
-  PUBRELQueue  = new MQTTPUBRELQueue(this);
-}
-
-MQTTClient::~MQTTClient() {
-  delete PUBLISHQueue;
-  delete PUBRECQueue;
-  delete PUBRELQueue;
-}
-
 void MQTTClient::reset() {
   pingIntervalRemaining = 0;
   pingCount = 0;
-  PUBRECQueue->clear();
-  PUBLISHQueue->clear();
-  PUBRELQueue->clear();
+  PUBRECQueue.clear();
+  PUBLISHQueue.clear();
+  PUBRELQueue.clear();
   isConnected = false;
 }
 
@@ -430,9 +423,9 @@ byte MQTTClient::pingInterval() {
 bool MQTTClient::queueInterval() {
   bool result;
 
-  result = PUBLISHQueue->interval();
-  result &= PUBRECQueue->interval();
-  result &= PUBRELQueue->interval();
+  result = PUBLISHQueue.interval();
+  result &= PUBRECQueue.interval();
+  result &= PUBRELQueue.interval();
 
   return result;
 }
@@ -581,7 +574,7 @@ bool MQTTClient::sendPUBLISH(MQTTMessage* msg) {
         qm->timeout = MQTT_PACKET_TIMEOUT;
         qm->retries = 0;
         qm->message = msg;
-        PUBLISHQueue->push(qm);
+        PUBLISHQueue.push(qm);
       }
 
       return result;
@@ -638,7 +631,7 @@ byte MQTTClient::recvPUBLISH(const byte flags, const long remainingLength) {
       qm->retries = 0;
       qm->timeout = MQTT_PACKET_TIMEOUT;
       qm->message = msg;
-      PUBRECQueue->push(qm);
+      PUBRECQueue.push(qm);
       sendPUBREC(packetid);
     }
     return MQTT_ERROR_NONE;
@@ -653,16 +646,16 @@ byte MQTTClient::recvPUBACK() {
   queuedMessage_t *qm;
 
   if (readWord(&packetid)) {
-    iterations == PUBLISHQueue->getCount();
+    iterations == PUBLISHQueue.getCount();
     if (iterations > 0) {
       do {
-        qm = PUBLISHQueue->pop();
+        qm = PUBLISHQueue.pop();
         if (qm->packetid == packetid) {
           delete qm->message;
           free(qm);
           return MQTT_ERROR_NONE;
         }
-        PUBLISHQueue->push(qm);
+        PUBLISHQueue.push(qm);
       } while (--iterations > 0);
     }
     return MQTT_ERROR_PACKETID_NOT_FOUND;
@@ -689,10 +682,10 @@ byte MQTTClient::recvPUBREC() {
   queuedMessage_t *qm;
 
   if (readWord(&packetid)) {
-    iterations == PUBLISHQueue->getCount();
+    iterations == PUBLISHQueue.getCount();
     if (iterations > 0) {
       do {
-        qm = PUBLISHQueue->pop();
+        qm = PUBLISHQueue.pop();
         if (qm->packetid == packetid) {
           delete qm->message;
           free(qm);
@@ -702,7 +695,7 @@ byte MQTTClient::recvPUBREC() {
             return MQTT_ERROR_SEND_PUBCOMP_FAILED;
           }
         }
-        PUBRELQueue->push(qm);
+        PUBRELQueue.push(qm);
        } while (--iterations > 0);
     }
     return MQTT_ERROR_PACKETID_NOT_FOUND;
@@ -729,10 +722,10 @@ byte MQTTClient::recvPUBREL() {
   queuedMessage_t *qm;
 
   if (readWord(&packetid)) {
-    iterations == PUBRECQueue->getCount();
+    iterations == PUBRECQueue.getCount();
     if (iterations > 0) {
       do {
-        qm = PUBRECQueue->pop();
+        qm = PUBRECQueue.pop();
         if (qm->packetid == packetid) {
           receiveMessage(*qm->message);
           delete qm->message;
@@ -743,7 +736,7 @@ byte MQTTClient::recvPUBREL() {
             return MQTT_ERROR_SEND_PUBCOMP_FAILED;
           }
         }
-        PUBRECQueue->push(qm);
+        PUBRECQueue.push(qm);
       } while (--iterations > 0);
     }
     return MQTT_ERROR_PACKETID_NOT_FOUND;
@@ -766,7 +759,7 @@ bool MQTTClient::sendPUBREL(const word packetid) {
       qm->timeout  = MQTT_PACKET_TIMEOUT;
       qm->retries  = 0;
       qm->message  = NULL;
-      PUBRELQueue->push(qm);
+      PUBRELQueue.push(qm);
     }
     return result;
   } else {
@@ -780,15 +773,15 @@ byte MQTTClient::recvPUBCOMP() {
   queuedMessage_t *qm;
 
   if (readWord(&packetid)) {
-    iterations == PUBRELQueue->getCount();
+    iterations == PUBRELQueue.getCount();
     if (iterations > 0) {
       do {
-        qm = PUBRELQueue->pop();
+        qm = PUBRELQueue.pop();
         if (qm->packetid == packetid) {
           delete qm;
           return MQTT_ERROR_NONE;
         }
-        PUBRELQueue->push(qm);
+        PUBRELQueue.push(qm);
       } while (--iterations > 0);
     }
     return MQTT_ERROR_PACKETID_NOT_FOUND;
