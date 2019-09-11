@@ -1,11 +1,11 @@
-#include <stdlib.h>
-#include "mqtt.h"
-
 /** @brief   This is the most minimalistic example possible. 
  *  @details It reads A0 once per second and publishes the results as an MQTT packet over 
  *           the serial port. It will not run unless there happens to be an MQTT server 
  *           listening to the other end of the serial port.
  */
+
+#include <stdlib.h>
+#include "mqtt.h"
 
 MQTTClient mqtt(Serial);
 
