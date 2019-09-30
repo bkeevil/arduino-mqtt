@@ -248,11 +248,10 @@ class MQTTBase {
   public:
     /** @brief The user of the component will supply a reference to an object of the Stream class */
     MQTTBase(Stream& stream): stream(stream) {} 
-  
-  protected:
-    /** @brief The network stream to read/write from */
-    Stream& stream;   
-    
+    protected:
+      /** @brief The network stream to read/write from */
+    Stream& stream; 
+
     /** @brief  Reads a word from the stream in big endian order 
      *  @param  A pointer to a variable that will receive the outgoing word
      *  @return True iff two bytes were read from the stream */
@@ -293,7 +292,6 @@ class MQTTClient: public MQTTBase {
     bool isConnected;
     // Constructor/Destructor
     MQTTClient(Stream& stream): MQTTBase(stream), PUBLISHQueue(this), PUBRECQueue(this), PUBRELQueue(this) {} 
-    ~MQTTClient() { if (willMessage.data != NULL) free(willMessage.data); }
     // Outgoing events - Override in descendant classes
     virtual void connected() {};
     

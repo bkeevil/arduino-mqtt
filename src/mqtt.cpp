@@ -267,9 +267,9 @@ bool MQTTClient::connect(const String& clientID, const String& username, const S
 
   reset();
   
-  Serial.print("Logging in as clientID: "); Serial.print(clientID);
-  Serial.print(" username: "); Serial.println(username);
-  
+  //Serial.print("Logging in as clientID: "); Serial.print(clientID);
+  //Serial.print(" username: "); Serial.println(username);
+
   rl = 10 + 2 + clientID.length();
 
   if (username.length() > 0) {
@@ -298,6 +298,9 @@ bool MQTTClient::connect(const String& clientID, const String& username, const S
     flags |= 2;
   }
 
+  //Serial.print("rl="); Serial.println(rl);
+  //Serial.print("keepAlive="); Serial.println(keepAlive);
+
   if ( (stream.write((byte)0x10) != 1) ||
        (!writeRemainingLength(rl)) ||
        (stream.write((byte)0) != 1) ||
@@ -312,7 +315,7 @@ bool MQTTClient::connect(const String& clientID, const String& username, const S
      ) return false;
 
   if (willMessage.enabled) {
-    if (!writeStr(willMessage.topic) || (stream.write(willMessage.data,willMessage.data_len) != willMessage.data_len)) {
+    if (!writeStr(willMessage.topic) || !writeWord(willMessage.data_len) || (stream.write(willMessage.data,willMessage.data_len) != willMessage.data_len)) {
       return false;
     }
   }
@@ -329,6 +332,8 @@ bool MQTTClient::connect(const String& clientID, const String& username, const S
     }
   }
 
+  stream.flush();
+
   pingIntervalRemaining = MQTT_DEFAULT_PING_INTERVAL;
 
   return true;
@@ -340,7 +345,7 @@ byte MQTTClient::recvCONNACK() {
   byte returnCode = MQTT_CONNACK_SUCCESS;    // Default return code is success
 
   Serial.println("recvCONNACK");
-  
+
   if (isConnected) return MQTT_ERROR_ALREADY_CONNECTED;
 
   int i = stream.read();
