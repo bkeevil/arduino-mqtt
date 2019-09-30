@@ -91,7 +91,7 @@ class MQTTClient;  // Forward declaration
  *            unused bytes.
  * @remark    The Print interface is used to write directly to the data buffer. 
  */
-class MQTTMessage: Printable, Print {
+class MQTTMessage: public Printable, public Print {
   public:
     MQTTMessage() = default;
     MQTTMessage(const String& topic_): topic(topic_) {}
@@ -108,6 +108,9 @@ class MQTTMessage: Printable, Print {
     
     /** @brief For incoming messages, whether it is being sent because it is a retained message. For outgoing messages, tells the server to retain the message. */
     bool retain;
+
+    /** @brief When this class specifies a willMessage or connectMessage, whether the message is enabled **/
+    bool enabled = true;
 
     /** @brief The data buffer */
     byte* data;            
@@ -238,28 +241,6 @@ class MQTTPUBRELQueue: public MQTTMessageQueue {
     MQTTPUBRELQueue(MQTTClient* client) : MQTTMessageQueue(client) {}    
 };
 
-/** @brief   Containts information about a will message that is sent by the server when the connection is lost */
-struct willMessage_t {
-  String topic;     /**< The topic for the connect message */
-  byte* data = NULL;       /**< The data buffer. Could be null */
-  size_t data_len;  /**< The length of the data buffer. Could be zero */
-  bool enabled;     /**< Whether or not the connect message should be sent on connection */
-  bool retain;      /**< Whether the connect message should be sent with the retain flag */
-  byte qos;         /**< The QoS to use to send the connect message */
-};
-
-/** @brief   Contains infomation about a connect message that is sent when a connection is successfully established
- *  @details Structure is identical to willMessage_t
- *  @remark  A connect message is not part of the MQTT 3.1.1 standard  */
-struct connectMessage_t {
-  String topic;     /**< The topic for the connect message */
-  byte* data = NULL;       /**< The data buffer. Could be null */
-  size_t data_len;  /**< The length of the data buffer. Could be zero */
-  bool enabled;     /**< Whether or not the connect message should be sent on connection */
-  bool retain;      /**< Whether the connect message should be sent with the retain flag */
-  byte qos;         /**< The QoS to use to send the connect message */
-};
-
 /** @brief   The abstract base class for the MQTTClient class
  *  @details Provides several protected utility methods for reading/writing data to/from a Stream object as 
  *           per the 3.1.1 protocol specs  */
@@ -305,11 +286,13 @@ class MQTTBase {
  *  @details  Create an instance of MQTTClient passing a reference to a Stream object as a constructor parameter */ 
 class MQTTClient: public MQTTBase {
   public:
-    willMessage_t willMessage;
-    connectMessage_t connectMessage;
+    MQTTMessage willMessage;
+    MQTTMessage connectMessage;
+    MQTTMessage disconnectMessage;
+
     bool isConnected;
     // Constructor/Destructor
-    MQTTClient(Stream& stream): MQTTBase(stream), PUBLISHQueue(this), PUBRECQueue(this), PUBRELQueue(this) {}
+    MQTTClient(Stream& stream): MQTTBase(stream), PUBLISHQueue(this), PUBRECQueue(this), PUBRELQueue(this) {} 
     ~MQTTClient() { if (willMessage.data != NULL) free(willMessage.data); }
     // Outgoing events - Override in descendant classes
     virtual void connected() {};

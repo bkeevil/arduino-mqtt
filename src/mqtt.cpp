@@ -266,7 +266,10 @@ bool MQTTClient::connect(const String& clientID, const String& username, const S
   word rl;      // Remaining Length
 
   reset();
-
+  
+  Serial.print("Logging in as clientID: "); Serial.print(clientID);
+  Serial.print(" username: "); Serial.println(username);
+  
   rl = 10 + 2 + clientID.length();
 
   if (username.length() > 0) {
@@ -336,6 +339,8 @@ byte MQTTClient::recvCONNACK() {
   bool sessionPresent = false;
   byte returnCode = MQTT_CONNACK_SUCCESS;    // Default return code is success
 
+  Serial.println("recvCONNACK");
+  
   if (isConnected) return MQTT_ERROR_ALREADY_CONNECTED;
 
   int i = stream.read();
@@ -377,6 +382,10 @@ byte MQTTClient::recvCONNACK() {
 }
 
 void MQTTClient::disconnect() {
+  if (disconnectMessage.enabled) {
+    disconnectMessage.qos = qtAT_MOST_ONCE;
+    publish(disconnectMessage);
+  }
   stream.write((byte)0xE0);
   stream.write((byte)0);
   isConnected = false;
