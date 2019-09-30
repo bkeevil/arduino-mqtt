@@ -6,6 +6,8 @@
  *  @copyright  GNU General Public License Version 3
  */
 
+// TODO: WillMessage should be converted to an MQTTMessage object
+
 #ifndef MQTT_H
 #define MQTT_H
 
@@ -141,7 +143,7 @@ class MQTTMessage: Printable, Print {
     int available() { return data_len - data_pos; }
     
     /** @brief The number of bytes allocated but not written to */
-    int availableForWrite() override { return data_size - data_pos; }  
+    int availableForWrite() /* override */ { return data_size - data_pos; }  
     
     /** @brief Pre-allocate bytes in the data buffer to prevent reallocation and fragmentation
      *  @param size Number of bytes to reserve */
@@ -239,7 +241,7 @@ class MQTTPUBRELQueue: public MQTTMessageQueue {
 /** @brief   Containts information about a will message that is sent by the server when the connection is lost */
 struct willMessage_t {
   String topic;     /**< The topic for the connect message */
-  byte* data;       /**< The data buffer. Could be null */
+  byte* data = NULL;       /**< The data buffer. Could be null */
   size_t data_len;  /**< The length of the data buffer. Could be zero */
   bool enabled;     /**< Whether or not the connect message should be sent on connection */
   bool retain;      /**< Whether the connect message should be sent with the retain flag */
@@ -251,7 +253,7 @@ struct willMessage_t {
  *  @remark  A connect message is not part of the MQTT 3.1.1 standard  */
 struct connectMessage_t {
   String topic;     /**< The topic for the connect message */
-  byte* data;       /**< The data buffer. Could be null */
+  byte* data = NULL;       /**< The data buffer. Could be null */
   size_t data_len;  /**< The length of the data buffer. Could be zero */
   bool enabled;     /**< Whether or not the connect message should be sent on connection */
   bool retain;      /**< Whether the connect message should be sent with the retain flag */
@@ -308,6 +310,7 @@ class MQTTClient: public MQTTBase {
     bool isConnected;
     // Constructor/Destructor
     MQTTClient(Stream& stream): MQTTBase(stream), PUBLISHQueue(this), PUBRECQueue(this), PUBRELQueue(this) {}
+    ~MQTTClient() { if (willMessage.data != NULL) free(willMessage.data); }
     // Outgoing events - Override in descendant classes
     virtual void connected() {};
     
@@ -339,9 +342,8 @@ class MQTTClient: public MQTTBase {
     bool publish(const String& topic, const String& data, const qos_t qos = qtAT_MOST_ONCE, const bool retain=false);
 
     /** @brief   Publish an MQTTMessage object to the server.
-     *  Create a new MQTTMessage object using the "new" operator and pass it to this function. The MQTTClient class
-     *  will destroy msg when it is no longer needed.
-     *  @warning Do not destroy msg in your program or unexpected results may occur */
+     *  This method will create a copy of msg and manage its lifecycle. You are free to destroy the original message 
+     *  object after calling this function. */
     bool publish(MQTTMessage& msg) { MQTTMessage* m = new MQTTMessage(msg); return sendPUBLISH(m); }
 
     // Incoming events - Call from your application 
