@@ -341,8 +341,6 @@ byte MQTTClient::recvCONNACK() {
   bool sessionPresent = false;
   byte returnCode = MQTT_CONNACK_SUCCESS;    // Default return code is success
 
-  Serial.println("recvCONNACK");
-
   if (isConnected) return MQTT_ERROR_ALREADY_CONNECTED;
 
   int i = stream.read();
