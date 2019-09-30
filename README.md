@@ -27,7 +27,7 @@ Version 2 will have some minor interface changes.
 
 ## Useage
 
-Create a subclass of MQTTClient in your main application. Your application can respond to MQTT events by overriding any of the following virtual methods. 
+Create a subclass of MQTTClient in your main application. Your application can respond to MQTT events by overriding any of the following virtual methods:
 
 ```
 #include "mqtt.h"
@@ -38,12 +38,7 @@ class MyMQTTClient: public MQTTClient {
     void initSession() override;
     void subscribed(const word packetID, const byte resultCode) override;
     void unsubscribed(const word packetID) override;
-    void receiveMessagereceiveMessage(
-      const String& topic, 
-      const byte* data, 
-      const size_t data_len, 
-      const bool retain, 
-      const bool duplicate) override; 
+    void receiveMessage(const MQTTMessage& msg) override; 
 };
 
 MyMQTTClient mqtt(WiFiClient);
@@ -61,7 +56,7 @@ void loop() {
 }
 ```
 
-It also needs to call `mqtt.interval()` once every second or so. This method keeps track of packet queues and retransmits any packets that timeout.
+It also needs to call `mqtt.interval()` once every second or so. This method keeps track of packet queues and retransmits any packets that timeout:
 
 ```
 void loop() {
@@ -75,7 +70,7 @@ void loop() {
 }
 ```
 
-Subscriptions are best done by overriding `mqtt.initSession()`. initSession is called after a client connects to the server but no existing session could be re-established.
+Subscriptions are best done by overriding `mqtt.initSession()`. initSession is called after a client connects to the server but no existing session could be re-established:
 
 ```
 void MyMQTTClient::initSession() {
@@ -85,9 +80,7 @@ void MyMQTTClient::initSession() {
 }
 ```
 
-Topic strings are String objects that are passed by reference. Topic strings can also be passed as a literal string.
-
-Data can be passed as a String object, String literal, as a byte array, or as a character buffer.
+Topic strings are String objects that are passed by reference. Topic strings can also be passed as a literal string. Data can be passed as a String object, String literal, as a byte array, or as a character buffer.
 
 ```
 const String someTopic("Topic/1");
@@ -101,10 +94,10 @@ mqtt.publish("Topic/3",dataBuffer,20,qtAT_LEAST_ONCE);
 mqtt.publish(someTopic,(byte *)strBuffer,strlen(strBuffer));
 ```
 
-You can also create and send a MQTTMessage object directly. This lets you use the Print interface to write complex data to the data buffer.
+You can also create and send a MQTTMessage object directly. This lets you use the Print interface to write complex data to the data buffer:
 
 ```
-MQTTMessage msg()
+MQTTMessage msg;
 msg.topic = "Some/Topic";
 msg.qos = qtAT_MOST_ONCE;
 msg.print("{ timestamp: ");
