@@ -5,12 +5,13 @@
 
 class MyMQTTClient: public MQTTClient {
   public:
+    MyMQTTClient(Stream& stream) : MQTTClient(stream) {}
     // Events
     void connected() override;
     void initSession() override;
-    void subscribed(word packetID, byte resultCode) override;
-    void unsubscribed(word packetID) override;
-    void receiveMessage(char *topic, char *data, bool retain, bool duplicate) override; 
+    void subscribed(const word packetID, const byte resultCode) override;
+    void unsubscribed(const word packetID) override;
+    void receiveMessage(const MQTTMessage& msg) override;
 };
 
 SSD1306  display(0x3c, 5, 4);
@@ -150,18 +151,18 @@ void MyMQTTClient::connected() {
   MQTTClient::connected();
 }
 
-void MyMQTTClient::subscribed(word packetID, byte resultCode) {
+void MyMQTTClient::subscribed(const word packetID, const byte resultCode) {
   Serial.print("Subscribed "); Serial.print(packetID); Serial.print(" "); Serial.println(resultCode);
   MQTTClient::subscribed(packetID,resultCode);
 }
 
-void MyMQTTClient::unsubscribed(word packetID) {
+void MyMQTTClient::unsubscribed(const word packetID) {
   Serial.print("Unsubscribed "); Serial.println(packetID);
   MQTTClient::unsubscribed(packetID);
 }
 
-void MyMQTTClient::receiveMessage(char *topic, char *data, bool retain, bool duplicate) {
-  Serial.print("recieveMessage topic="); Serial.print(topic); Serial.print(" data="); Serial.println(data);
-  MQTTClient::receiveMessage(topic,data,retain,duplicate);
+void MyMQTTClient::receiveMessage(const MQTTMessage& msg) {
+  Serial.print("recieveMessage topic="); Serial.print(msg.topic); Serial.print(" data="); Serial.println(msg.data);
+  MQTTClient::receiveMessage(msg);
 }
     
