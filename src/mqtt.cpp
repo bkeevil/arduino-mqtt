@@ -298,9 +298,6 @@ bool MQTTClient::connect(const String& clientID, const String& username, const S
     flags |= 2;
   }
 
-  //Serial.print("rl="); Serial.println(rl);
-  //Serial.print("keepAlive="); Serial.println(keepAlive);
-
   if ( (stream.write((byte)0x10) != 1) ||
        (!writeRemainingLength(rl)) ||
        (stream.write((byte)0) != 1) ||
