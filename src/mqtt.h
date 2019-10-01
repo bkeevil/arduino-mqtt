@@ -157,6 +157,15 @@ class MQTTMessage: public Printable, public Print {
     
     /** @brief Set the index from which the next character will be read/written */
     void seek(int pos) { data_pos = pos; }
+
+    /** @brief Returns a copy of data as a String object RValue reference **/
+    const String&& dataStr();
+
+    /** @brief Returns true if data matches str **/
+    bool equals(const char* str);
+    bool equals(const String& str);
+    bool equalsIgnoreCase(const char* str);
+    bool equalsIgnoreCase(const String& str);
   private: 
     size_t data_size;      /**< The number of bytes allocated in the data buffer */
     size_t data_pos;       /**< Index of the next byte to be written */

@@ -36,6 +36,37 @@ void MQTTMessage::pack() {
   }
 }
 
+const String&& MQTTMessage::dataStr() {
+  String s;
+  s.reserve(data_len);
+  for (int i=0; i<data_len; i++) {
+    s += data[i];
+  }
+  return s; 
+}
+
+bool equals(const char* str) {
+  const String s(str);
+  String d((char*)data);
+  return s.equals(d);
+}
+
+bool equals(String& str) {
+  String d((char*)data);
+  return str.equals(d);
+}
+
+bool equalsIgnoreCase(const char* str) {
+  const String s(str);
+  String d((char*)data);
+  return s.equalsIgnoreCase(d);
+}
+
+bool equalsIgnoreCase(String& str) {
+  String d((char*)data);
+  return str.equalsIgnoreCase(d);
+}
+
 int MQTTMessage::read() {
   if (data_pos < data_len) {
     return data[data_pos++];
