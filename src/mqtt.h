@@ -15,9 +15,11 @@
 #include "Printable.h"
 #include "Print.h"
 
-#define MQTT_DEFAULT_PING_INTERVAL               30 /**< The number of seconds between pings. Must be less than MQTT_PACKET_TIMEOUT */
+#define DEBUG
+
+#define MQTT_DEFAULT_PING_INTERVAL               20 /**< The number of seconds between pings. Must be less than MQTT_PACKET_TIMEOUT */
 #define MQTT_DEFAULT_PING_RETRY_INTERVAL          6 /**< Frequency of pings in seconds after a failed ping response */
-#define MQTT_DEFAULT_KEEPALIVE                   60 /**< Number of seconds of inactivity before disconnect */
+#define MQTT_DEFAULT_KEEPALIVE                   30 /**< Number of seconds of inactivity before disconnect */
 #define MQTT_MIN_PACKETID                       256 /**< The first 256 packet IDs are reserved for subscribe/unsubscribe packet ids */
 #define MQTT_MAX_PACKETID                     65535 /**< The maximum packet ID that can be assigned */
 #define MQTT_PACKET_TIMEOUT                       3 /**< Number of seconds before a packet is resent */
@@ -129,7 +131,7 @@ class MQTTMessage: public Printable, public Print {
     
     /** @brief Read a byte from the data buffer without advancing to the next character
      *  @return int The byte read, or -1 if there is no more data */    
-    int peek();
+    int peek() const;
     
     /** @brief Writes a byte to the end of the data buffer
      *  @param c The byte to be written
@@ -143,10 +145,10 @@ class MQTTMessage: public Printable, public Print {
     size_t write(const byte* buffer, size_t size) override;
     
     /** @brief The number of bytes remaining to be read from the buffer */
-    int available() { return data_len - data_pos; }
+    int available() const { return data_len - data_pos; }
     
     /** @brief The number of bytes allocated but not written to */
-    int availableForWrite() /* override */ { return data_size - data_pos; }  
+    int availableForWrite() const /* override */ { return data_size - data_pos; }  
     
     /** @brief Pre-allocate bytes in the data buffer to prevent reallocation and fragmentation
      *  @param size Number of bytes to reserve */
@@ -158,14 +160,14 @@ class MQTTMessage: public Printable, public Print {
     /** @brief Set the index from which the next character will be read/written */
     void seek(int pos) { data_pos = pos; }
 
-    /** @brief Returns a copy of data as a String object RValue reference **/
-    const String&& dataStr();
-
     /** @brief Returns true if data matches str **/
-    bool equals(const char* str);
-    bool equals(const String& str);
-    bool equalsIgnoreCase(const char* str);
-    bool equalsIgnoreCase(const String& str);
+    bool equals(const char str[]) const;
+    /** @brief Returns true if data matches str **/
+    bool equals(const String& str) const;
+    /** @brief Returns true if data matches str **/
+    bool equalsIgnoreCase(const char str[]) const;
+    /** @brief Returns true if data matches str **/
+    bool equalsIgnoreCase(const String& str) const;
   private: 
     size_t data_size;      /**< The number of bytes allocated in the data buffer */
     size_t data_pos;       /**< Index of the next byte to be written */
@@ -302,7 +304,7 @@ class MQTTClient: public MQTTBase {
     // Constructor/Destructor
     MQTTClient(Stream& stream): MQTTBase(stream), PUBLISHQueue(this), PUBRECQueue(this), PUBRELQueue(this) {} 
     // Outgoing events - Override in descendant classes
-    virtual void connected() {};
+    virtual void connected();
     
     /** @brief Called when the MQTT server terminates the connection
      *  @details Override disconnected() to perform additional actions when the the server terminates the MQTT connection */
@@ -313,7 +315,7 @@ class MQTTClient: public MQTTBase {
     virtual void unsubscribed(const word packetID) {};
     virtual void receiveMessage(const MQTTMessage& msg) {};
     // Main Interface Methods
-    bool connect(const String& clientID, const String& username, const String& password, const bool cleanSession = false, const word keepAlive = MQTT_DEFAULT_KEEPALIVE);
+    bool connect(const String& clientID, const String& username, const String& password, const bool cleanSession = true, const word keepAlive = MQTT_DEFAULT_KEEPALIVE);
     
     /** @brief Disconnects the MQTT connection */
     void disconnect();

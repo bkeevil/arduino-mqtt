@@ -36,33 +36,24 @@ void MQTTMessage::pack() {
   }
 }
 
-const String&& MQTTMessage::dataStr() {
-  String s;
-  s.reserve(data_len);
-  for (int i=0; i<data_len; i++) {
-    s += data[i];
-  }
-  return s; 
-}
-
-bool equals(const char* str) {
+bool MQTTMessage::equals(const char* str) const {
   const String s(str);
   String d((char*)data);
   return s.equals(d);
 }
 
-bool equals(String& str) {
+bool MQTTMessage::equals(const String& str) const {
   String d((char*)data);
   return str.equals(d);
 }
 
-bool equalsIgnoreCase(const char* str) {
+bool MQTTMessage::equalsIgnoreCase(const char* str) const {
   const String s(str);
   String d((char*)data);
   return s.equalsIgnoreCase(d);
 }
 
-bool equalsIgnoreCase(String& str) {
+bool MQTTMessage::equalsIgnoreCase(const String& str) const {
   String d((char*)data);
   return str.equalsIgnoreCase(d);
 }
@@ -75,7 +66,7 @@ int MQTTMessage::read() {
   }
 }
 
-int MQTTMessage::peek() {
+int MQTTMessage::peek() const {
   if (data_pos < data_len) {
     return data[data_pos];
   } else {
@@ -119,6 +110,8 @@ void MQTTMessageQueue::clear() {
       delete ptr->message;
     free(ptr);
   }
+  first = NULL;
+  last = NULL;
 }
 
 bool MQTTMessageQueue::interval() {
@@ -127,15 +120,18 @@ bool MQTTMessageQueue::interval() {
 
   qm = pop();
   if (qm != NULL) {
+    Serial.println("Queue Message Popped");
     if (--qm->timeout == 0) {
       if (++qm->retries >= MQTT_PACKET_RETRIES) {
         result = false;
         delete qm->message;
         free(qm);
+        Serial.println("Too many packet resent retries");
       } else {
         qm->timeout = MQTT_PACKET_TIMEOUT;
         push(qm);
         resend(qm);
+        Serial.println("Resending packet");
       }
     }
   }
@@ -143,6 +139,7 @@ bool MQTTMessageQueue::interval() {
 }
 
 void MQTTMessageQueue::push(queuedMessage_t* qm) {
+  
   if (last != NULL) {
     last->next = qm;
     qm->next = NULL;
@@ -161,6 +158,9 @@ queuedMessage_t* MQTTMessageQueue::pop() {
     ptr = first;
     first = first->next;
     count--;
+    if (count == 0) {
+      last = NULL;
+    }
     return ptr;
   } else {
     return NULL;
@@ -168,15 +168,24 @@ queuedMessage_t* MQTTMessageQueue::pop() {
 }
 
 void MQTTPUBLISHQueue::resend(queuedMessage_t* qm) { 
+  #ifdef DEBUG
+  Serial.println("Resending PUBLISH packet");
+  #endif
   qm->message->duplicate = true; 
   client->sendPUBLISH(qm->message); 
 }
 
 void MQTTPUBRECQueue::resend(queuedMessage_t* qm) { 
+  #ifdef DEBUG
+  Serial.println("Resending PUBREC packet");
+  #endif
   client->sendPUBREC(qm->packetid); 
 }
 
 void MQTTPUBRELQueue::resend(queuedMessage_t* qm) { 
+  #ifdef DEBUG
+  Serial.println("Resending PUBREL packet");
+  #endif
   client->sendPUBREL(qm->packetid); 
 }
 
@@ -327,6 +336,9 @@ bool MQTTClient::connect(const String& clientID, const String& username, const S
 
   if (cleanSession) {
     flags |= 2;
+    PUBLISHQueue.clear();
+    PUBRECQueue.clear();
+    PUBRELQueue.clear();    
   }
 
   if ( (stream.write((byte)0x10) != 1) ||
@@ -393,8 +405,6 @@ byte MQTTClient::recvCONNACK() {
   if (returnCode == MQTT_CONNACK_SUCCESS) {
     pingIntervalRemaining = MQTT_DEFAULT_PING_INTERVAL;
     pingCount = 0;
-    isConnected = true;
-    //Serial.println("Calling connected()");
     connected();
     if (!sessionPresent) {
       initSession();
@@ -412,6 +422,16 @@ byte MQTTClient::recvCONNACK() {
   return MQTT_ERROR_UNKNOWN;
 }
 
+void MQTTClient::connected() {
+  isConnected = true;
+  if (stream.available() > 0) {
+    dataAvailable();
+  }
+  if (connectMessage.enabled) {
+    publish(connectMessage);
+  }
+}
+
 void MQTTClient::disconnect() {
   if (disconnectMessage.enabled) {
     disconnectMessage.qos = qtAT_MOST_ONCE;
@@ -423,11 +443,17 @@ void MQTTClient::disconnect() {
 }
 
 void MQTTClient::disconnected() {
+  #ifdef DEBUG
+  Serial.println("Server terminated the MQTT connection");
+  #endif
   isConnected = false;
   pingIntervalRemaining = 0;
 }
 
 bool MQTTClient::sendPINGREQ() {
+  #ifdef DEBUG
+  Serial.println("sendPINGREQ");
+  #endif
   bool result;
   if (isConnected) {
     result = (stream.write((byte)12 << 4) == 1);
@@ -435,6 +461,9 @@ bool MQTTClient::sendPINGREQ() {
     return result;
   } else {
     return false;
+    #ifdef DEBUG
+    Serial.println("sendPINGREQ failed");
+    #endif
   }
 }
 
@@ -499,6 +528,10 @@ byte MQTTClient::recvSUBACK(const long remainingLength) {
   long rl;
   word packetid;
 
+  #ifdef DEBUG
+  Serial.println("Received SUBACK");
+  #endif
+
   if (!isConnected) {
     return MQTT_ERROR_NOT_CONNECTED;
   }
@@ -536,6 +569,11 @@ bool MQTTClient::unsubscribe(const word packetid, const String& filter) {
 
 byte MQTTClient::recvUNSUBACK() {
   word packetid;
+
+  #ifdef DEBUG
+  Serial.println("Received UNSUBACK");
+  #endif
+
   if (!isConnected) {
     return MQTT_ERROR_NOT_CONNECTED;
   }
@@ -574,6 +612,9 @@ bool MQTTClient::sendPUBLISH(MQTTMessage* msg) {
   bool result;
 
   if (msg != NULL) {
+    #ifdef DEBUG
+    Serial.println("sending PUBLISH");
+    #endif
     if ((msg->topic != NULL) && (msg->topic.length()>0) && (msg->qos<3) && (isConnected)) {
 
       flags |= (msg->qos << 1);
@@ -594,6 +635,15 @@ bool MQTTClient::sendPUBLISH(MQTTMessage* msg) {
         nextPacketID = MQTT_MIN_PACKETID;
       }
 
+      #ifdef DEBUG
+      Serial.print("flags="); Serial.println(flags);
+      Serial.print("qos="); Serial.println(msg->qos);
+      Serial.print("packetid="); Serial.println(packetid);
+      Serial.print("topic="); Serial.println(msg->topic);
+      Serial.print("rl="); Serial.println(remainingLength);
+      Serial.print("data_len="); Serial.println(msg->data_len);
+      #endif
+
       result = (
         (stream.write(0x30 | flags) == 1) &&
         writeRemainingLength(remainingLength) &&
@@ -604,22 +654,28 @@ bool MQTTClient::sendPUBLISH(MQTTMessage* msg) {
         result = writeWord(packetid);
       }
 
-      if (result && (msg->data != NULL)) {
+      if (result && (msg->data != NULL) && (msg->data_len > 0)) {
         result = (stream.write(msg->data,msg->data_len) == msg->data_len);
       }
 
       if (result && (msg->qos > 0)) {
+        Serial.println("Adding message to PUBLISHQueue");
         queuedMessage_t* qm = new queuedMessage_t;
         qm->packetid = packetid;
         qm->timeout = MQTT_PACKET_TIMEOUT;
         qm->retries = 0;
         qm->message = msg;
         PUBLISHQueue.push(qm);
+      } else {
+        free(msg);
       }
 
       return result;
 
-    } else return false;
+    } else { 
+      free(msg);
+      return false;
+    }
   } else return false;
 }
 
@@ -630,6 +686,10 @@ byte MQTTClient::recvPUBLISH(const byte flags, const long remainingLength) {
   long rl;
   int i;
   
+  #ifdef DEBUG
+  Serial.println("Received PUBLISH");
+  #endif
+
   msg = new MQTTMessage();
 
   msg->duplicate = (flags & 8) > 0;
@@ -685,8 +745,16 @@ byte MQTTClient::recvPUBACK() {
   int iterations;
   queuedMessage_t *qm;
 
+  #ifdef DEBUG
+  Serial.println("Received PUBACK");
+  #endif
+
   if (readWord(&packetid)) {
-    iterations == PUBLISHQueue.getCount();
+    #ifdef DEBUG
+    Serial.print("  packetid="); Serial.println(packetid);
+    #endif
+    iterations = PUBLISHQueue.getCount();
+    Serial.print("  iterations="); Serial.println(iterations);
     if (iterations > 0) {
       do {
         qm = PUBLISHQueue.pop();
@@ -706,6 +774,11 @@ byte MQTTClient::recvPUBACK() {
 
 bool MQTTClient::sendPUBACK(const word packetid) {
   bool result;
+  
+  #ifdef DEBUG
+  Serial.println("Sending PUBACK");
+  #endif
+
   if (isConnected) {
     result =  (stream.write(0x40) == 1);
     result &= (stream.write(0x02) == 1);
@@ -721,8 +794,12 @@ byte MQTTClient::recvPUBREC() {
   int iterations;
   queuedMessage_t *qm;
 
+  #ifdef DEBUG
+  Serial.println("Received PUBREC");
+  #endif
+
   if (readWord(&packetid)) {
-    iterations == PUBLISHQueue.getCount();
+    iterations = PUBLISHQueue.getCount();
     if (iterations > 0) {
       do {
         qm = PUBLISHQueue.pop();
@@ -746,6 +823,11 @@ byte MQTTClient::recvPUBREC() {
 
 bool MQTTClient::sendPUBREC(const word packetid) {
   bool result;
+
+  #ifdef DEBUG
+  Serial.println("Sending PUBREC");
+  #endif
+
   if (isConnected) {
     result =  (stream.write(0x50) == 1);
     result &= (stream.write(0x02) == 1);
@@ -761,8 +843,12 @@ byte MQTTClient::recvPUBREL() {
   int iterations;
   queuedMessage_t *qm;
 
+  #ifdef DEBUG
+  Serial.println("Received PUBREL");
+  #endif
+
   if (readWord(&packetid)) {
-    iterations == PUBRECQueue.getCount();
+    iterations = PUBRECQueue.getCount();
     if (iterations > 0) {
       do {
         qm = PUBRECQueue.pop();
@@ -789,6 +875,10 @@ bool MQTTClient::sendPUBREL(const word packetid) {
   bool result;
   queuedMessage_t* qm;
 
+  #ifdef DEBUG
+  Serial.println("Sending PUBREL");
+  #endif
+
   if (isConnected) {
     result =  (stream.write(0x62) == 1);
     result &= (stream.write(0x02) == 1);
@@ -812,6 +902,10 @@ byte MQTTClient::recvPUBCOMP() {
   int iterations;
   queuedMessage_t *qm;
 
+  #ifdef DEBUG
+  Serial.println("Received PUBCOMP");
+  #endif
+
   if (readWord(&packetid)) {
     iterations == PUBRELQueue.getCount();
     if (iterations > 0) {
@@ -832,6 +926,11 @@ byte MQTTClient::recvPUBCOMP() {
 
 bool MQTTClient::sendPUBCOMP(const word packetid) {
   bool result;
+
+  #ifdef DEBUG
+  Serial.println("Sending PUBCOMP");
+  #endif
+
   if (isConnected) {
     result = (stream.write(0x70) == 1);
     result &= (stream.write(0x02) == 1);
@@ -870,7 +969,11 @@ byte MQTTClient::dataAvailable() {
     case ptSUBACK    : return recvSUBACK(remainingLength); break;
     case ptUNSUBACK  : return recvUNSUBACK(); break;
     case ptPUBLISH   : return recvPUBLISH(flags,remainingLength); break;
+    #ifdef DEBUG
+    case ptPINGRESP  : Serial.println("PINGRESP"); return MQTT_ERROR_NONE; break;
+    #else
     case ptPINGRESP  : return MQTT_ERROR_NONE; break;
+    #endif
     case ptPUBACK    : return recvPUBACK(); break;
     case ptPUBREC    : return recvPUBREC(); break;
     case ptPUBREL    : return recvPUBREL(); break;
