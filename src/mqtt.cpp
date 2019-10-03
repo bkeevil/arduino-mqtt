@@ -1,4 +1,5 @@
 #include "mqtt.h"
+#include "tokenizer.h"
 
 /* MQTTMessage */
 
@@ -307,9 +308,11 @@ bool MQTTClient::connect(const String& clientID, const String& username, const S
 
   reset();
   
-  //Serial.print("Logging in as clientID: "); Serial.print(clientID);
-  //Serial.print(" username: "); Serial.println(username);
-
+  #ifdef DEBUG
+  Serial.print("Logging in as clientID: "); Serial.print(clientID);
+  Serial.print(" username: "); Serial.println(username);
+  #endif
+  
   rl = 10 + 2 + clientID.length();
 
   if (username.length() > 0) {

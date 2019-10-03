@@ -173,6 +173,13 @@ class MQTTMessage: public Printable, public Print {
     size_t data_pos;       /**< Index of the next byte to be written */
 };
 
+/** @brief Structure for a linked list of subscriptions */
+struct subscription_t {
+  char filter[]; 
+  qos_t qos_;
+  subscription_t* next;
+};
+
 /** @struct  queuedMessage_t mqtt.h
  *  @details Structure for message queue linked list 
  */
