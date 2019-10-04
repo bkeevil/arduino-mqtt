@@ -1,6 +1,6 @@
 #include "tokenizer.h"
 
-bool checkTopicMatchesFilter(MQTTTokenizer& topic, MQTTTokenizer& filter) {
+bool MQTTTokenizer::checkTopicMatchesFilter(MQTTTokenizer& topic, MQTTTokenizer& filter) {
   int i = 0;
   bool result = false;
 
@@ -8,36 +8,36 @@ bool checkTopicMatchesFilter(MQTTTokenizer& topic, MQTTTokenizer& filter) {
   MQTTToken_t* topicPtr;
 
   filterPtr = filter.first;
-  topicPtr = topic.first;
+  topicPtr  = topic.first;
 
   while (filterPtr != nullptr) {
     if (i >= topic.count) {
-      return (result && (filterPtr->kind == tkMultiLevel));
+      return (result && (filterPtr->kind == TokenKind_t::tkMultiLevel));
     }
     
     if (filterPtr->kind == tkInvalid) { 
       return false;
-    } else if (filterPtr->kind == tkValid) {
+    } else if (filterPtr->kind == TokenKind_t::tkValid) {
       result = (filterPtr->text == topicPtr->text);
       if (!result) return result;
-    } else if (filterPtr->kind == tkMultilevel) {
+    } else if (filterPtr->kind == tkMultiLevel) {
       return true;
     } else {
       result = true;
     }
     
     ++i;
-    filterPtr = filterPtr.next;
-    topicPtr = topicPtr.next;
+    filterPtr = filterPtr->next;
+    topicPtr = topicPtr->next;
   }
   
   if (filter.count < topic.count) {
     // Retrieve the count - 1 token from the filter list
     i = 0;
     filterPtr = filter.first;
-    while ((filterPtr != nullptr) && (i < filter.count - 1) {
+    while ((filterPtr != nullptr) && (i < filter.count - 1)) {
       ++i;
-      filterPtr = filterPtr.next;
+      filterPtr = filterPtr->next;
     }
     result = (result && (filterPtr != nullptr) && filterPtr->kind == tkMultiLevel);
   }
@@ -48,50 +48,70 @@ bool checkTopicMatchesFilter(MQTTTokenizer& topic, MQTTTokenizer& filter) {
 /** @brief  Parse a topic name or topic filter into tokens and validate those tokens
  *  @param  text  The topic or filter sting to Parse
  *  @param  isFilter  Set to true to parse as a topic filter, or false to parse as a topic name
+ *  @remark A copy of text has to be made because it is modified by the tokenizer
  *  @return True if the topic name or filter string was parsed and was valid
  */
-bool MQTTTokenizer.tokenize(String&& text, bool isFilter) {
-  MQTTToken_t* last = nullptr;
+bool MQTTTokenizer::tokenize(String text, bool isFilter) {
+  MQTTToken_t* ptr = nullptr;
   
   clear();
   
-  if (text.length() > 0) {
-    _tokenize(String&& text, last);
+  //Serial.println("before _tokenize");
+  
+  // Remove any trailing / char
+  if (text.lastIndexOf('/') == text.length() - 1) {
+      text = text.substring(0,text.length() - 1);
   }
-  if isFilter {
-    return = validateTopicFilter();
+
+  if (text.length() > 0) {
+    _tokenize(text, ptr);
   } else {
-    return = validateTopicName();
+    return false;
+  }
+  //Serial.println("before validate");
+  if (isFilter) {
+    return validateTopicFilter();
+  } else {
+    return validateTopicName();
   }
 }
 
 /** @brief  Recursively tokenize text and add the tokens to the linked list.
  *  @remark Called by tokenize()
  */
-void MQTTTokenizer::_tokenize(String&& text, MQTTToken_t* last) {
+void MQTTTokenizer::_tokenize(String& text, MQTTToken_t* ptr) {
+  String token;
 
-  size_t pos := text.indexof('/');
-  if (pos == 0) {
-    String token(text);
-    text.clear();
+  //Serial.print("  Entry text="); Serial.println(text);
+  int pos = text.indexOf('/');
+  if (pos < 0) {
+    token = text;
+    text = "";
   } else {
-    String token(text.substr(0,pos));
-    text = text.substr(pos+1);
+    token = text.substring(0,pos);
+    text = text.substring(pos+1);
   }
-  if (last == nullptr) {
-    first = new(MQTTToken_t);
-    last = first;
-  } else {
-    last->next = new(MQTTToken_t);
-    last = last->next;
-  }  
-  last->text = token;
-  last->next = nullptr;
-  last->kind = tkUnknown;
-  ++count;
+  //Serial.print("  Next text="); Serial.println(text);
+  //Serial.print("  token="); Serial.println(token);
 
+  if (ptr == nullptr) {
+    //Serial.println("malloc first node");
+    first = (MQTTToken_t*)malloc(sizeof(MQTTToken_t));
+    ptr = first;
+  } else {
+    //Serial.println("malloc subsequent node");
+    ptr->next = (MQTTToken_t*)malloc(sizeof(MQTTToken_t));
+    ptr = ptr->next;
+  }  
+  
+  ptr->text = token;
+  ptr->next = nullptr;
+  ++count;
+  //Serial.print("  count="); Serial.println(count);
+  //Serial.print("  pos="); Serial.println(pos);
+  //Serial.print("  length="); Serial.println(text.length());
   if ((pos > 0) || (text.length() > 0)) 
-    _tokenize(text,last);  
+    _tokenize(text,ptr);  
 }
 
 /** @brief    Validates a token as a topic name. 
@@ -102,7 +122,7 @@ void MQTTTokenizer::_tokenize(String&& text, MQTTToken_t* last) {
  *  @returns  True if the token is valid 
  */ 
 bool MQTTTokenizer::validateTopicName(MQTTToken_t* token) {
-  if ((token->text.length() == 0) || ((token->text.indexof('#') == 0) && (token->text.indexof('+') == 0))) {
+  if ((token->text.length() == 0) || ((token->text.indexOf('#') == 0) && (token->text.indexOf('+') == 0))) {
     token->kind = tkValid;
     return true;
   } else {
@@ -137,16 +157,16 @@ bool MQTTTokenizer::validateTopicFilter(MQTTToken_t* token, bool isLast) {
   // An empty string is always valid
   if (len == 0) return true;
   
-  hashPos := token->kind.indexof('#');
-  plusPos := token->kind.indexof('+');
+  hashPos = token->text.indexOf('#');
+  plusPos = token->text.indexOf('+');
 
   // Any token not containing a special char is valid
-  if ((FHashPos == 0) && (FPlusPos == 0)) return true;
+  if ((hashPos == 0) && (plusPos == 0)) return true;
   
   token->kind = tkInvalid;
 
   // The hash character must only appear on its own
-  if ((hashPos > 0) && (len <> 1)) return false;
+  if ((hashPos > 0) && (len != 1)) return false;
   // The hash character must only be in the last in the list of tokens
   if ((hashPos > 0) && !isLast) return false;
   // The plus character must only appear on its own
@@ -156,12 +176,12 @@ bool MQTTTokenizer::validateTopicFilter(MQTTToken_t* token, bool isLast) {
   if (hashPos == 1) {
     token->kind = tkMultiLevel;
   } else if (plusPos == 1) {
-      FKind := tkSingleLevel;
+      token->kind = tkSingleLevel;
   }
   return true;
 }
 
-bool MQTTTokenizer.validateTopicName() {
+bool MQTTTokenizer::validateTopicName() {
   MQTTToken_t* ptr;
 
   // An empty topic string is invalid
@@ -176,7 +196,7 @@ bool MQTTTokenizer.validateTopicName() {
   return true;
 }
 
-bool MQTTTokenizer::validateTopicFilter();
+bool MQTTTokenizer::validateTopicFilter() {
   int i=0;
   MQTTToken_t* ptr;
 
@@ -193,17 +213,17 @@ bool MQTTTokenizer::validateTopicFilter();
   return true;
 }
 
-String&& MQTTTokenizer::asString() const {
+String MQTTTokenizer::asString() const {
   int i=0;
-  MQTTToken_t ptr;
-  String S;
+  MQTTToken_t* ptr;
+  String s;
 
   ptr = first;
   while (ptr != nullptr) {
     switch (ptr->kind) {
-      case tkSingleLevel: S.concat('+'); break;
-      case tkMultiLevel: S.concat('#'); break;
-      case tkkValid: S.concat(ptr->text); break;
+      case tkSingleLevel: s.concat('+'); break;
+      case tkMultiLevel: s.concat('#'); break;
+      case tkValid: s.concat(ptr->text); break;
     }
     if (i < count - 1) 
       s.concat('/');
@@ -213,12 +233,13 @@ String&& MQTTTokenizer::asString() const {
   return s;
 }
 
-void MQTTTokenizer.clear() {
-  MQTTToken_t ptr;
-  
+void MQTTTokenizer::clear() {
+  MQTTToken_t* ptr;
+  //Serial.print("first="); Serial.println(int(first),HEX);
   while (first != nullptr) {
     ptr = first->next;
-    delete(first);
+    //Serial.println("Free node");
+    free(first);
     first = ptr; 
   }
 
