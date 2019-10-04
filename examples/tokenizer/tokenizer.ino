@@ -13,11 +13,6 @@ void setup() {
   String s("Test1/Test2/Test3");
   tokenizer.tokenizeTopic(s);
 
-/*
-    a subscription to A/# is a subscription to the topic A and all topics beneath A
-    a subscription to A/+ is a subscription to the topics directly beneath, but not A itself
-    a subscription to A/+/# is a subscription to all topics beneath A, but not A itself
-*/
 
   runTest(s.equals("Test1/Test2/Test3"));
   Serial.print("Blank Topic: ");
@@ -73,19 +68,64 @@ void setup() {
   Serial.print("Wildcard Slash Topic: ");
   runTest(!tokenizer.tokenizeTopic("+/"));
   Serial.print("Slash Wildcard Topic: ");
-  runTest(!tokenizer.tokenizeTopic("/+"));
+  runTest(!tokenizer.tokenizeTopic("/+"));  
   
-  /*runTest(tokenizer.tokenize("Test1/TestA/TestB",true));
-  runTest(tokenizer.asString().equals("Test1/TestA/TestB"));
-  runTest(tokenizer.tokenize("Test1/TestA/TestB",false));
-  runTest(tokenizer.tokenize("Test1/+/TestB",true));
-  runTest(!tokenizer.tokenize("Test1/+/TestB",false));
-  runTest(!tokenizer.tokenize("Test1/TestA+/TestB",true));
-  runTest(!tokenizer.tokenize("Test1/TestA+/TestB",false));
-  runTest(!tokenizer.tokenize("Test1/#/TestB",true));
-  runTest(!tokenizer.tokenize("Test1/#/TestB",false));
-  runTest(!tokenizer.tokenize("Test1/TestA/#",true));
-  runTest(tokenizer.tokenize("Test1/TestA/#",false));*/
+  Serial.print("Three Token Topic: ");
+  runTest(tokenizer.tokenizeTopic("Test1/TestA/TestB"));
+  Serial.print("Check asString matches: ");
+  runTest(tokenizer.asString(s).equals("Test1/TestA/TestB"));
+  Serial.print("Three Token Topic Count: ");
+  runTest(tokenizer.count == 3);
+
+  Serial.print("Three Token Filter: ");
+  runTest(tokenizer.tokenizeFilter("Test1/TestA/TestB"));
+  Serial.print("Check asString matches: ");
+  runTest(tokenizer.asString(s).equals("Test1/TestA/TestB"));
+  Serial.print("Three Token Filter Count: ");
+  runTest(tokenizer.count == 3);
+  
+  Serial.print("Wildcard in topic: ");
+  runTest(!tokenizer.tokenizeTopic("Test1/+/TestB"));
+  Serial.print("Wildcard in filter: ");
+  runTest(tokenizer.tokenizeFilter("Test1/+/TestB"));
+  Serial.print("Wildcard in Filter Count: ");
+  runTest(tokenizer.count == 3);
+
+  Serial.print("Wildcard as part of topic token: ");
+  runTest(!tokenizer.tokenizeTopic("Test1/TestA+/TestB"));
+  Serial.print("Wildcard as part of filter token: ");
+  runTest(!tokenizer.tokenizeFilter("Test1/TestA+/TestB"));
+  
+  Serial.print("Multi as part of topic token: ");
+  runTest(!tokenizer.tokenizeTopic("Test1/TestA#/TestB"));
+  Serial.print("Multi as part of filter token: ");
+  runTest(!tokenizer.tokenizeFilter("Test1/TestA#/TestB"));
+  
+  Serial.print("Multi in wrong place in topic: ");
+  runTest(!tokenizer.tokenizeTopic("Test1/#/TestB"));
+  Serial.print("Multi in wrong place in filter: ");
+  runTest(!tokenizer.tokenizeFilter("Test1/#/TestB"));
+
+  Serial.print("Multi in right place in topic: ");
+  runTest(!tokenizer.tokenizeTopic("Test1/TestA/#"));
+  Serial.print("Multi in right place in filter: ");
+  runTest(tokenizer.tokenizeFilter("Test1/TestA/#"));
+  Serial.print("Multi in right place token count: ");
+  runTest(tokenizer.count == 3);
+
+  Serial.print("Wildcard at end in topic: ");
+  runTest(!tokenizer.tokenizeTopic("Test1/TestA/+"));
+  Serial.print("Wildcard at end in filter: ");
+  runTest(tokenizer.tokenizeFilter("Test1/TestA/+"));
+
+  Serial.print("Wildcard Multi at end in topic: ");
+  runTest(tokenizer.tokenizeFilter("Test1/TestA/+/#"));
+  
+  /*
+    a subscription to A/# is a subscription to the topic A and all topics beneath A
+    a subscription to A/+ is a subscription to the topics directly beneath, but not A itself
+    a subscription to A/+/# is a subscription to all topics beneath A, but not A itself
+  */
 }
 
 void loop() {
