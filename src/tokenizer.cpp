@@ -1,17 +1,21 @@
 #include "tokenizer.h"
 
-bool MQTTTokenizer::checkTopicMatchesFilter(MQTTTokenizer& filter, MQTTTokenizer& topic) {
+bool MQTTFilter::match(const MQTTTopic& topic) const {
   int i = 0;
   bool result = false;
 
   MQTTToken* filterPtr;
   MQTTToken* topicPtr;
+  String s;
 
-  filterPtr = filter.first;
-  topicPtr  = topic.first;
+  filterPtr = first();
+  topicPtr  = topic.first();
 
+  //Serial.print("  filter="); Serial.println(getString(s));
+  //Serial.print("  topic="); Serial.println(topic.getString(s));
+  
   while (filterPtr != nullptr) {
-    if (i >= topic.count) {
+    if (i >= topic.count()) {
       return (result && (filterPtr->kind == TokenKind_t::tkMultiLevel));
     }
     
@@ -31,11 +35,11 @@ bool MQTTTokenizer::checkTopicMatchesFilter(MQTTTokenizer& filter, MQTTTokenizer
     topicPtr = topicPtr->next;
   }
   
-  if (filter.count < topic.count) {
+  if (count() < topic.count()) {
     // Retrieve the count - 1 token from the filter list
     i = 0;
-    filterPtr = filter.first;
-    while ((filterPtr != nullptr) && (i < filter.count - 1)) {
+    filterPtr = first();
+    while ((filterPtr != nullptr) && (i < count() - 1)) {
       ++i;
       filterPtr = filterPtr->next;
     }
@@ -51,35 +55,57 @@ bool MQTTTokenizer::checkTopicMatchesFilter(MQTTTokenizer& filter, MQTTTokenizer
 void MQTTTokenizer::tokenize(const String& text) {
   clear();
   MQTTToken* ptr = nullptr;
-  if (text.length() > 0) 
-    _tokenize(text, ptr);
+  int len = text.length();
+
+  if (len > 0) {
+    // Strip off ending '/' character before starting recursive tokenize routine
+    if (text.lastIndexOf('/') == len - 1) {
+      // Don't start tokenize if text="/"
+      if (len > 1) {
+        _tokenize(text.substring(0,len-1), ptr);
+      }
+    } else {
+      _tokenize(text, ptr);
+    }
+  }
+
+  String s;
+  //Serial.print("  getString="); Serial.println(getString(s));
 }
 
 /** @brief  Recursively tokenize text and add the tokens to the linked list.
  *  @remark Called by tokenize()
  */
-void MQTTTokenizer::_tokenize(const String& text, MQTTToken* ptr) {
-  MQTTToken node = new MQTTToken;
+void MQTTTokenizer::_tokenize(String text, MQTTToken* ptr) {
+  MQTTToken* node = new MQTTToken;
 
   //Serial.print("  text="); Serial.println(text);
 
-  if (ptr = nullptr) {
-    first = node;
+  if (ptr == nullptr) {
+    //Serial.println("Add first node");
+    first_ = node;
   } else {
-    ptr.next = node;
+    //Serial.println("Add subsequent node");
+    ptr->next = node;
   }
-  
-  ++count;
+      
+  ++count_;
   
   int pos = text.indexOf('/');
+  //Serial.print("  pos="); Serial.println(pos);
   if (pos < 0) {
-    node.text = text;
+    node->text = text;
+    //Serial.print("  token="); Serial.println(node->text);
   } else {
-    node.text = text.substring(0,pos);
+    node->text = text.substring(0,pos);
+    //Serial.print("  token="); Serial.println(node->text);
     if (pos < text.length() - 1) {
-      _tokenize(text,text.substring(pos+1)); 
-    } 
+      //Serial.print(" _tokenize() "); Serial.println(text.substring(pos+1));
+      _tokenize(text.substring(pos+1),node); 
+    }
   }
+
+  //Serial.print("  count="); Serial.println(count_);
 }
 
 String& MQTTTokenizer::getString(String& s) const {
@@ -88,24 +114,25 @@ String& MQTTTokenizer::getString(String& s) const {
   MQTTToken* ptr;
 
   s = "";
-
-  ptr = first;
+  //Serial.println("getString");
+  ptr = first_;
   while (ptr != nullptr) {
+    //Serial.print("  kind: "); Serial.println(ptr->kind);
     switch (ptr->kind) {
       case tkSingleLevel: ++size; break;
       case tkMultiLevel: ++size; break;
       case tkValid: size += ptr->text.length(); break;
     }    
-    //Serial.print(ptr->text); 
+    //Serial.print("  text: "); Serial.println(ptr->text); 
     ++size;
     ptr = ptr->next;
   }
 
-  //Serial.print("size="); Serial.println(size-1);
+  //Serial.print("  size: "); Serial.println(size-1);
 
   s.reserve(size-1);
 
-  ptr = first;
+  ptr = first_;
   while (ptr != nullptr) {
   
     switch (ptr->kind) {
@@ -113,7 +140,7 @@ String& MQTTTokenizer::getString(String& s) const {
       case tkMultiLevel: s += '#'; break;
       case tkValid: s += ptr->text; break;
     }
-    if (i < count - 1) {
+    if (i < count_ - 1) {
       s += '/';
     }
     ++i;
@@ -125,22 +152,24 @@ String& MQTTTokenizer::getString(String& s) const {
 
 void MQTTTokenizer::clear() {
   MQTTToken* ptr;
-  while (first != nullptr) {
-    ptr = first->next;
-    delete first;
-    first = ptr; 
+  while (first_ != nullptr) {
+    ptr = first_->next;
+    delete first_;
+    first_ = ptr; 
   }
-  first = nullptr;
-  count = 0;
+  first_ = nullptr;
+  count_ = 0;
 }
 
-virtual bool MQTTTopic::validate() override {
+bool MQTTTopic::validate() {
   MQTTToken* ptr;
 
-  // An empty topic string is invalid
-  if (count == 0) return false;
+  //Serial.println("Topic Validate");
   
-  ptr = first;
+  // An empty topic string is invalid
+  if (count() == 0) return false;
+  
+  ptr = first();
   while (ptr != nullptr) {
     if (!validateToken(*ptr)) {
       clear();
@@ -169,15 +198,17 @@ bool MQTTTopic::validateToken(MQTTToken& token) {
   }
 }
 
-virtual bool MQTTFilter::validate() override {
+bool MQTTFilter::validate() {
   MQTTToken* ptr;
 
+  //Serial.println("Filter Validate");
+  
   // An empty topic string is invalid
-  if (first == nullptr) {
+  if (first() == nullptr) {
     return false;
   }
 
-  ptr = first;
+  ptr = first();
   while (ptr != nullptr) {
     if (!validateToken(*ptr)) {
       clear();
@@ -214,6 +245,10 @@ bool MQTTFilter::validateToken(MQTTToken& token) {
   hashPos = token.text.indexOf('#');
   plusPos = token.text.indexOf('+');
 
+  //Serial.print("  token="); Serial.println(token.text);
+  //Serial.print("  hashPos="); Serial.println(hashPos);
+  //Serial.print("  plusPos="); Serial.println(plusPos);
+  
   // Any token not containing a special char is valid
   if ((hashPos == -1) && (plusPos == -1)) {
     token.kind = tkValid;
@@ -222,7 +257,7 @@ bool MQTTFilter::validateToken(MQTTToken& token) {
 
   // The hash and plus character must only appear on their own
   // The hash character must only be in the last in the list of tokens
-  if ((hashPos > 0) || (plusPos > 0) || ((hashPos == 0) && (token.next == nullptr))) {
+  if ((hashPos > 0) || (plusPos > 0) || ((hashPos == 0) && (token.next != nullptr))) {
     token.kind = tkInvalid;
     return false;
   } 
@@ -232,7 +267,11 @@ bool MQTTFilter::validateToken(MQTTToken& token) {
     token.kind = tkMultiLevel;
   } else if (plusPos == 0) {
     token.kind = tkSingleLevel;
+  } else {
+    token.kind = tkValid;
   }
   
+  //Serial.print("  kind="); Serial.println(token.kind);
+
   return true;
 }
