@@ -1,6 +1,14 @@
+/** @file     tokenizer.ino
+ *  @brief    A test driver for MQTTTokenizer, MQTTTopic, and MQTTFilter classes of my mqtt package.
+ *  @author   Bond Keevil
+ *  @date     2019
+ *  @remarks  Should run on any ESP32 module
+ */
+
 #include "Arduino.h"
 #include "tokenizer.h"
 #include "esp_heap_caps.h"
+
 
 void runTest(bool b) {
   if (b) Serial.println("PASS"); else Serial.println("FAIL");
