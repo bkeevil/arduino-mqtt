@@ -1,19 +1,15 @@
 #include "Arduino.h"
 #include "tokenizer.h"
+#include "esp_heap_caps.h"
+
+MQTTTokenizer tokenizer;
+String s("Test1/Test2/Test3");
 
 void runTest(bool b) {
   if (b) Serial.println("PASS"); else Serial.println("FAIL");
 }
 
-void setup() {
-  Serial.begin(115200);
-
-  MQTTTokenizer tokenizer;
-  
-  String s("Test1/Test2/Test3");
-  tokenizer.tokenizeTopic(s);
-
-
+void testGroup1() {
   runTest(s.equals("Test1/Test2/Test3"));
   Serial.print("Blank Topic: ");
   runTest(!tokenizer.tokenizeTopic(""));
@@ -27,7 +23,6 @@ void setup() {
   runTest(!tokenizer.tokenizeTopic("/"));
   Serial.print("Single Slash Count: ");
   runTest(tokenizer.count==0);
-
   Serial.print("Single Slash Filter: ");
   runTest(!tokenizer.tokenizeFilter("/"));
   Serial.print("Single Slash Filter Count: ");
@@ -56,8 +51,10 @@ void setup() {
   runTest(tokenizer.tokenizeFilter("/+"));
   Serial.print("Slash Wildcard Filter Count: ");
   runTest(tokenizer.count==2);
-  
-  Serial.print("Single Multi Topic: ");
+}
+
+void testGroup2() {
+    Serial.print("Single Multi Topic: ");
   runTest(!tokenizer.tokenizeTopic("#"));
   Serial.print("Single Wildcard Topic: ");
   runTest(!tokenizer.tokenizeTopic("+"));
@@ -120,12 +117,78 @@ void setup() {
 
   Serial.print("Wildcard Multi at end in topic: ");
   runTest(tokenizer.tokenizeFilter("Test1/TestA/+/#"));
+}
+
+void testGroup3() {
+  Serial.println("A subscription to A/# is a subscription to the topic A and all topics beneath A");
+  MQTTTokenizer filter("A/#");
+  tokenizer.tokenizeTopic("A");
+  runTest(MQTTTokenizer::checkTopicMatchesFilter(filter,tokenizer));
+  tokenizer.tokenizeTopic("A/");
+  runTest(MQTTTokenizer::checkTopicMatchesFilter(filter,tokenizer));
+  tokenizer.tokenizeTopic("A/B");
+  runTest(MQTTTokenizer::checkTopicMatchesFilter(filter,tokenizer));
+  tokenizer.tokenizeTopic("B");
+  runTest(!MQTTTokenizer::checkTopicMatchesFilter(filter,tokenizer));
+  tokenizer.tokenizeTopic("A/Test1/Test2");
+  runTest(MQTTTokenizer::checkTopicMatchesFilter(filter,tokenizer));
+}
+
+void testGroup4() {
+  Serial.println("A subscription to A/+ is a subscription to the topics directly beneath, but not A itself");
+  MQTTTokenizer filter("A/+");
+  tokenizer.tokenizeTopic("A");
+  runTest(!MQTTTokenizer::checkTopicMatchesFilter(filter,tokenizer));
+  tokenizer.tokenizeTopic("A/");
+  runTest(!MQTTTokenizer::checkTopicMatchesFilter(filter,tokenizer));
+  tokenizer.tokenizeTopic("A/B");
+  runTest(MQTTTokenizer::checkTopicMatchesFilter(filter,tokenizer));
+  tokenizer.tokenizeTopic("B");
+  runTest(!MQTTTokenizer::checkTopicMatchesFilter(filter,tokenizer));
+  tokenizer.tokenizeTopic("A/Test1/Test2");
+  runTest(!MQTTTokenizer::checkTopicMatchesFilter(filter,tokenizer));
+
+}
+
+void testGroup5() {
+  Serial.println("subscription to A/+/# is a subscription to all topics beneath A, but not A itself");
+  MQTTTokenizer filter("A/+/#");
+  tokenizer.tokenizeTopic("A");
+  runTest(!MQTTTokenizer::checkTopicMatchesFilter(filter,tokenizer));
+  tokenizer.tokenizeTopic("A/");
+  runTest(!MQTTTokenizer::checkTopicMatchesFilter(filter,tokenizer));
+  tokenizer.tokenizeTopic("A/B");
+  runTest(MQTTTokenizer::checkTopicMatchesFilter(filter,tokenizer));
+  tokenizer.tokenizeTopic("B");
+  runTest(!MQTTTokenizer::checkTopicMatchesFilter(filter,tokenizer));
+  tokenizer.tokenizeTopic("A/Test1/Test2");
+  runTest(MQTTTokenizer::checkTopicMatchesFilter(filter,tokenizer));
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  Serial.print("Free Heap Memory: "); Serial.println(heap_caps_get_free_size(MALLOC_CAP_8BIT)); 
+
+  const String q("A/B/C");
+  const String& w("B/C/D");
+  String& r(s);
+
+  runTest(tokenizer.tokenizeTopic(s));
+  runTest(tokenizer.tokenizeTopic(r));
+  runTest(tokenizer.tokenizeTopic(q));
+  runTest(tokenizer.tokenizeTopic(w));
+
+  //testGroup1();
+  //testGroup2();
+  testGroup3();
+  testGroup4();
+  testGroup5();
+    
   
-  /*
-    a subscription to A/# is a subscription to the topic A and all topics beneath A
-    a subscription to A/+ is a subscription to the topics directly beneath, but not A itself
-    a subscription to A/+/# is a subscription to all topics beneath A, but not A itself
-  */
+
+
+
 }
 
 void loop() {

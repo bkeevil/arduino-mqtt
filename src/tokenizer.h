@@ -4,40 +4,64 @@
 #include "Arduino.h"
 
 enum TokenKind_t {
-  tkInvalid=0,
+  tkUnknown=0,
+  tkInvalid,
   tkValid,
   tkMultiLevel,
   tkSingleLevel
 };
 
 class MQTTToken {
-  friend class MQTTTokenizer;
   public:
-    MQTTToken() : kind(tkInvalid), next(nullptr) {};
+    MQTTToken() : kind(tkUnknown), next(nullptr) {};
     String text;
     TokenKind_t kind;
     MQTTToken* next;
-  private:
-    bool validateTopicName();
-    bool validateTopicFilter(bool isLast); 
 };
 
 class MQTTTokenizer {
   public:
-    MQTTTokenizer() : count(0), first(nullptr) {}
+    MQTTTokenizer() : count(0)_, first_(nullptr) {}
     ~MQTTTokenizer() { clear(); }
-    static bool checkTopicMatchesFilter(MQTTTokenizer& topic, MQTTTokenizer& filter);
-    void clear();  
-    String& asString(String&s) const;
-    inline bool tokenizeTopic(const String& topic) { return tokenize(topic,false); } 
-    inline bool tokenizeFilter(const String& filter) { return tokenize(filter,true); }
-    byte count;
-    MQTTToken* first; 
+    void clear();
+    bool setString(String& s) { tokenize(s); return validate(); }; 
+    String& getString(String& s) const; 
+  protected:
+    static bool checkTopicMatchesFilter(MQTTTokenizer& filter, MQTTTokenizer& topic);
+    virtual bool validate() = 0;
   private:
-    bool tokenize(String text, bool isFilter);
+    void tokenize(const String& text);
     void _tokenize(String& text, MQTTToken* ptr);
-    bool validateTopicName();
-    bool validateTopicFilter();  
+    byte count_;
+    MQTTToken* first_;
+};
+
+class MQTTTopic;
+
+class MQTTFilter : public MQTTTokenizer {
+  public:
+    MQTTFilter() : MQTTTokenizer() {}
+    MQTTFilter(const String& filter) : MQTTTokenizer() { tokenize(filter); valid_ = validate(); }
+    bool valid() { return valid_; }
+    bool match(MQTTTopic& topic) { return checkTopicMatchesFilter(this, topic); };
+  protected:
+    virtual bool validate() override;
+  private:
+    bool validateToken(MQTTToken& token);
+    bool valid_;
+};
+
+class MQTTTopic : public MQTTTokenizer {
+  public:
+    MQTTTopic() : MQTTTokenizer() {}
+    MQTTTopic(const String& topic) : MQTTTokenizer() { tokenize(topic); valid_ = validate(); }
+    bool valid() { return valid_; }
+    bool match(MQTTFilter& filter) { return checkTopicMatchesFilter(filter,this); };
+  protected:
+    virtual bool validate() override;
+  private:
+    bool validateToken(MQTTToken& token);    
+    bool valid_;
 };
 
 #endif
