@@ -133,7 +133,7 @@ bool MQTTTopic::validate() {
  *  @remark   Any token containing a hash or a plus is invalid
  *  @returns  True if the token is valid 
  */ 
-bool MQTTTopic::validateToken(const MQTTToken& token) {   // TODO: Should token be const?
+bool MQTTTopic::validateToken(MQTTToken& token) {   // TODO: Should token be const?
   if ((token.text.length() == 0) || ((token.text.indexOf('#') == -1) && (token.text.indexOf('+') == -1))) {
     token.kind = tkValid;
     return true;
@@ -180,7 +180,7 @@ bool MQTTFilter::validate() {
  *  @remark   The plus character must only appear on its own
  *  @returns  True if the token is valid 
  */ 
-bool MQTTFilter::validateToken(const MQTTToken& token) { // TODO: Should token be const?
+bool MQTTFilter::validateToken(MQTTToken& token) { // TODO: Should token be const?
   size_t len;
   int hashPos;
   int plusPos;

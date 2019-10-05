@@ -129,7 +129,7 @@ class MQTTFilter : public MQTTTokenizer {
   protected:
     virtual bool validate() override;
   private:
-    bool validateToken(const MQTTToken& token);
+    bool validateToken(MQTTToken& token);
 };
 
 class MQTTTopic : public MQTTTokenizer {
@@ -140,7 +140,7 @@ class MQTTTopic : public MQTTTokenizer {
   protected:
     virtual bool validate() override;
   private:
-    bool validateToken(const MQTTToken& token);    
+    bool validateToken(MQTTToken& token);    
 };
 
 class MQTTClient;  // Forward declaration
