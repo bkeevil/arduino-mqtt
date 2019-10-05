@@ -1,13 +1,284 @@
 #include "mqtt.h"
-#include "tokenizer.h"
+
+/* MQTTTokenizer */
+
+/** @brief  Parse a topic name or topic filter string into a linked list of tokens
+ *  @param  text  The topic or filter sting to Parse
+ */
+void MQTTTokenizer::tokenize(const String& text) {
+  clear();
+  MQTTToken* ptr = nullptr;
+  int len = text.length();
+
+  if (len > 0) {
+    // Strip off ending '/' character before starting recursive tokenize routine
+    if (text.lastIndexOf('/') == len - 1) {
+      // Don't start tokenize if text="/"
+      if (len > 1) {
+        _tokenize(text.substring(0,len-1), ptr);
+      }
+    } else {
+      _tokenize(text, ptr);
+    }
+  }
+
+  String s;
+  //Serial.print("  getString="); Serial.println(getString(s));
+}
+
+/** @brief  Recursively tokenize text and add the tokens to the linked list.
+ *  @remark Called by tokenize()
+ */
+void MQTTTokenizer::_tokenize(String text, MQTTToken* ptr) {
+  MQTTToken* node = new MQTTToken;
+
+  if (ptr == nullptr) {
+    first_ = node;
+  } else {
+    ptr->next = node;
+  }
+      
+  ++count_;
+  
+  int pos = text.indexOf('/');
+  if (pos < 0) {
+    node->text = text;
+  } else {
+    node->text = text.substring(0,pos);
+    if (pos < text.length() - 1) {
+      _tokenize(text.substring(pos+1),node); 
+    }
+  }
+
+}
+
+String& MQTTTokenizer::getString(String& s) const {
+  int i=0;
+  int size=0;
+  MQTTToken* ptr;
+
+  s = "";
+ 
+  ptr = first_;
+  while (ptr != nullptr) {
+    switch (ptr->kind) {
+      case tkSingleLevel: ++size; break;
+      case tkMultiLevel: ++size; break;
+      case tkValid: size += ptr->text.length(); break;
+    }    
+    ++size;
+    ptr = ptr->next;
+  }
+
+  s.reserve(size-1);
+
+  ptr = first_;
+  while (ptr != nullptr) {
+  
+    switch (ptr->kind) {
+      case tkSingleLevel: s += '+'; break;
+      case tkMultiLevel: s += '#'; break;
+      case tkValid: s += ptr->text; break;
+    }
+    if (i < count_ - 1) {
+      s += '/';
+    }
+    ++i;
+    ptr = ptr->next;
+  }
+
+  return s;
+}
+
+void MQTTTokenizer::clear() {
+  MQTTToken* ptr;
+  while (first_ != nullptr) {
+    ptr = first_->next;
+    delete first_;
+    first_ = ptr; 
+  }
+  first_ = nullptr;
+  count_ = 0;
+}
+
+/* MQTTTopic */
+
+/** @brief    Validates the tokenized topic string.
+ *  @returns  True if the topic string is valid.
+ *  @remark   An empty topic string is invalid
+ *  @remark   If the topic string is found to be invalid the token list is cleared
+ */
+bool MQTTTopic::validate() {
+  MQTTToken* ptr;
+
+  // An empty topic string is invalid
+  if (count() == 0) return false;
+  
+  ptr = first();
+  while (ptr != nullptr) {
+    if (!validateToken(*ptr)) {
+      clear();
+      return false;
+    }
+    ptr = ptr->next;
+  }
+
+  return true;
+}
+
+/** @brief    Validates a token as a topic name. 
+ *            Sets the token kind to tkValid or tkInvalid.
+ *  @param    token   A reference to the token to validate
+ *  @remark   Empty string is valid
+ *  @remark   Any token containing a hash or a plus is invalid
+ *  @returns  True if the token is valid 
+ */ 
+bool MQTTTopic::validateToken(const MQTTToken& token) {   // TODO: Should token be const?
+  if ((token.text.length() == 0) || ((token.text.indexOf('#') == -1) && (token.text.indexOf('+') == -1))) {
+    token.kind = tkValid;
+    return true;
+  } else {
+    token.kind = tkInvalid;
+    return false;
+  }
+}
+
+/* MQTTFilter */
+
+/** @brief    Validates the tokenized filter string.
+ *  @returns  True if the filter string is valid.
+ *  @remark   An empty topic string is invalid
+ *  @remark   If the topic string is determined to be invalid, the token list is cleared.
+ */
+bool MQTTFilter::validate() {
+  MQTTToken* ptr;
+
+  // An empty filter string is invalid
+  if (first() == nullptr) {
+    return false;
+  }
+
+  ptr = first();
+  while (ptr != nullptr) {
+    if (!validateToken(*ptr)) {
+      clear();
+      return false;
+    }
+    ptr = ptr->next;
+  }
+
+  return true;
+}
+
+/** @brief    Validates a token as a topic name. 
+ *            Sets the token kind to tkValid or tkInvalid.
+ *  @param    token   The token to validate
+ *  @remark   An empty string is always valid
+ *  @remark   Any token not containing a special char is valid
+ *  @remark   The hash character must only appear on its own
+ *  @remark   The hash character must only be in the last in the list of tokens
+ *  @remark   The plus character must only appear on its own
+ *  @returns  True if the token is valid 
+ */ 
+bool MQTTFilter::validateToken(const MQTTToken& token) { // TODO: Should token be const?
+  size_t len;
+  int hashPos;
+  int plusPos;
+  
+  // An empty string is always valid
+  len = token.text.length();
+  if (len == 0) {
+    token.kind = tkValid;
+    return true;
+  }
+
+  hashPos = token.text.indexOf('#');
+  plusPos = token.text.indexOf('+');
+
+  // Any token not containing a special char is valid
+  if ((hashPos == -1) && (plusPos == -1)) {
+    token.kind = tkValid;
+    return true;
+  }
+
+  // The hash and plus character must only appear on their own
+  // The hash character must only be in the last in the list of tokens
+  if ((hashPos > 0) || (plusPos > 0) || ((hashPos == 0) && (token.next != nullptr))) {
+    token.kind = tkInvalid;
+    return false;
+  } 
+  
+  // Token is valid but set the token kind enum for special chars
+  if (hashPos == 0) {
+    token.kind = tkMultiLevel;
+  } else if (plusPos == 0) {
+    token.kind = tkSingleLevel;
+  } else {
+    token.kind = tkValid;
+  }
+  
+  return true;
+}
+
+/** @brief    Returns true if the topic string matches the filter
+ *  @param    topic The topic to match
+ *  @Returns  True if the topic matches the filter
+ */   
+bool MQTTFilter::match(const MQTTTopic& topic) const {
+  int i = 0;
+  bool result = false;
+
+  MQTTToken* filterPtr;
+  MQTTToken* topicPtr;
+  String s;
+
+  filterPtr = first();
+  topicPtr  = topic.first();
+
+  while (filterPtr != nullptr) {
+    if (i >= topic.count()) {
+      return (result && (filterPtr->kind == TokenKind_t::tkMultiLevel));
+    }
+    
+    if (filterPtr->kind == tkInvalid) { 
+      return false;
+    } else if (filterPtr->kind == TokenKind_t::tkValid) {
+      result = (filterPtr->text == topicPtr->text);
+      if (!result) return result;
+    } else if (filterPtr->kind == tkMultiLevel) {
+      return true;
+    } else {
+      result = true;
+    }
+    
+    ++i;
+    filterPtr = filterPtr->next;
+    topicPtr = topicPtr->next;
+  }
+  
+  if (count() < topic.count()) {
+    // Retrieve the count - 1 token from the filter list
+    i = 0;
+    filterPtr = first();
+    while ((filterPtr != nullptr) && (i < count() - 1)) {
+      ++i;
+      filterPtr = filterPtr->next;
+    }
+    result = (result && (filterPtr != nullptr) && filterPtr->kind == tkMultiLevel);
+  }
+
+  return result;
+}
 
 /* MQTTMessage */
 
+/** @brief    Copy constructor */
 MQTTMessage::MQTTMessage(const MQTTMessage& m): topic(m.topic), qos(m.qos), duplicate(m.duplicate), retain(m.retain), data_len(m.data_len), data_size(m.data_len), data_pos(m.data_len) {
   data = (byte*) malloc(data_len);
   memcpy(data,m.data,data_len);
 }
 
+/** @brief    Printing a message object prints its data buffer */
 size_t MQTTMessage::printTo(Print& p) const {
   size_t pos;
   for (pos=0;pos<data_len;pos++) { 
@@ -16,6 +287,9 @@ size_t MQTTMessage::printTo(Print& p) const {
   return data_len;
 }
 
+/** @brief    Reserve size bytes of memory for the data buffer.
+ *            Use to reduce the number of memory allocations when the 
+ *            size of the data buffer is known before hand. */
 void MQTTMessage::reserve(size_t size) {
   if (data_size == 0) {
     data = (byte*) malloc(size);
@@ -25,6 +299,11 @@ void MQTTMessage::reserve(size_t size) {
   data_size = size;
 }
 
+/** @brief    Free any reserved data buffer memory that is unused 
+ *            You can reserve a larger buffer size than necessary and then
+ *            call pack() to discard the unused portion. Useful when the size 
+ *            of the data buffer is not easily determined. 
+*/
 void MQTTMessage::pack() {
   if (data_size > data_len) {
     if (data_len == 0) {
@@ -37,28 +316,47 @@ void MQTTMessage::pack() {
   }
 }
 
+/** @brief    Returns true if the message data buffer equals str
+ *  @param    str   The C string to compare the data buffer with
+ *  @remark   For a case insensitive compare see equalsIgnoreCase()
+ */
 bool MQTTMessage::equals(const char* str) const {
   const String s(str);
   String d((char*)data);
   return s.equals(d);
 }
 
+/** @brief    Returns true if the message data buffer equals str
+ *  @param    str   The String object to compare the data buffer with
+ *  @remark   For a case insensitive compare see equalsIgnoreCase()
+ */
 bool MQTTMessage::equals(const String& str) const {
   String d((char*)data);
   return str.equals(d);
 }
 
+/** @brief    Returns true if the message data buffer equals str
+ *  @param    str   The C string to compare the data buffer with
+ *  @remark   For a case sensitive compare see equals()
+ */
 bool MQTTMessage::equalsIgnoreCase(const char* str) const {
   const String s(str);
   String d((char*)data);
   return s.equalsIgnoreCase(d);
 }
 
+/** @brief    Returns true if the message data buffer equals str
+ *  @param    str   The String object to compare the data buffer with
+ *  @remark   For a case insensitive compare see equals()
+ */
 bool MQTTMessage::equalsIgnoreCase(const String& str) const {
   String d((char*)data);
   return str.equalsIgnoreCase(d);
 }
 
+/** @brief   Reads a single byte from the data buffer and advances to the next character
+ *  @returns -1 if there is no more data to be read
+ */
 int MQTTMessage::read() {
   if (data_pos < data_len) {
     return data[data_pos++];
@@ -67,6 +365,9 @@ int MQTTMessage::read() {
   }
 }
 
+/** @brief   Reads a single byte from the data buffer without advancing to the next character
+ *  @returns -1 if there is no more data to be read
+ */
 int MQTTMessage::peek() const {
   if (data_pos < data_len) {
     return data[data_pos];
