@@ -288,10 +288,9 @@ void MQTTSubscriptionList::clear() {
 /* MQTTMessage */
 
 /** @brief    Copy constructor */
-MQTTMessage::MQTTMessage(const MQTTMessage& m): MQTTTopic(), qos(m.qos), duplicate(m.duplicate), retain(m.retain), data_len(m.data_len), data_size(m.data_len), data_pos(m.data_len) {
-  String topic;
-  m.getTopic(topic);
-  setTopic(topic);
+MQTTMessage::MQTTMessage(const MQTTMessage& m): qos(m.qos), duplicate(m.duplicate), retain(m.retain), data_len(m.data_len), data_size(m.data_len), data_pos(m.data_len) {
+  String s;
+  topic.setString(m.topic.getString(s));  //TODO: MQTTTopic, MQTTFilter, and MQTTTokenizer copy and move constructors
   data = (byte*) malloc(data_len);
   memcpy(data,m.data,data_len);
 }
@@ -653,7 +652,7 @@ bool MQTTClient::connect(const String& clientID, const String& username, const S
   }
 
   String wmt;
-  willMessage.getTopic(wmt);
+  willMessage.topic.getString(wmt);
 
   flags |= (willMessage.qos << 3);
   if (willMessage.enabled) {
@@ -941,7 +940,7 @@ bool MQTTClient::sendPUBLISH(MQTTMessage* msg) {
     Serial.println("sending PUBLISH");
     #endif
     String mt;
-    msg->getTopic(mt);
+    msg->topic.getString(mt);
     if ((mt.length()>0) && (msg->qos < qtMAX_VALUE) && (isConnected)) {
 
       flags |= (msg->qos << 1);
@@ -1028,7 +1027,7 @@ byte MQTTClient::recvPUBLISH(const byte flags, const long remainingLength) {
 
   if (!readStr(topic)) return MQTT_ERROR_VARHEADER_INVALID;
 
-  if (!msg->setTopic(topic)) return MQTT_ERROR_VARHEADER_INVALID;
+  if (!msg->topic.setString(topic)) return MQTT_ERROR_VARHEADER_INVALID;
 
   rl = remainingLength - topic.length() - 2;
   

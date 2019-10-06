@@ -133,8 +133,6 @@ class MQTTFilter : public MQTTTokenizer {
     MQTTFilter() : MQTTTokenizer() {}
     MQTTFilter(const String& filter) : MQTTTokenizer(filter) { valid_ = validate(); }
     bool match(const MQTTTopic& topic) const;
-    String& getFilter(String& filter) const { return getString(filter); }
-    bool setFilter(const String& filter) { return setString(filter); }  protected:
     virtual bool validate() override;
   private:
     bool validateToken(MQTTToken& token);
@@ -145,8 +143,6 @@ class MQTTTopic : public MQTTTokenizer {
     MQTTTopic() : MQTTTokenizer() {}
     MQTTTopic(const String& topic) : MQTTTokenizer(topic) { valid_ = validate(); }
     bool match(const MQTTFilter& filter) const { return filter.match(*this); };
-    String& getTopic(String& topic) const { return getString(topic); }
-    bool setTopic(const String& topic) { return setString(topic); }
   protected:
     virtual bool validate() override;
   private:
@@ -154,11 +150,12 @@ class MQTTTopic : public MQTTTokenizer {
 };
 
 /** @brief Represents a client susbscriptions */
-class MQTTSubscription: MQTTFilter {
+class MQTTSubscription {
   public:
-    MQTTSubscription() : MQTTFilter() {}
-    MQTTSubscription(const String &filter) : MQTTFilter(filter) {}
-    MQTTSubscription(const String &filter, qos_t q) : MQTTFilter(filter), qos_(q) {}
+    MQTTSubscription() = default;
+    MQTTSubscription(const String &filter) : filter_(filter) {}
+    MQTTSubscription(const String &filter, qos_t q) : filter_(filter), qos_(q) {}
+    MQTTFilter& filter() { return filter_; }
     qos_t qos() const { return qos_; }
     MQTTSubscription* const next() const { return next_; }    
     void setQoS(qos_t q) { qos_ = q; }
@@ -166,11 +163,12 @@ class MQTTSubscription: MQTTFilter {
     void setHandler(MQTTMessageHandlerFunc f) { handler_ = f; }
   protected:
     virtual bool handle(MQTTMessage& msg) { return handler_(*this,msg); }
+    friend class MQTTSubscriptionList;
   private:
     qos_t qos_;
+    MQTTFilter filter_;
     MQTTSubscription* next_;
     MQTTMessageHandlerFunc handler_ = nullptr;
-    friend class MQTTSubscriptionList;
 };
 
 /** @brief A linked list of MQTTSubscription objects */
@@ -193,11 +191,13 @@ class MQTTSubscriptionList {
  *            unused bytes.
  * @remark    The Print interface is used to write directly to the data buffer. 
  */
-class MQTTMessage: public MQTTTopic, public Printable, public Print {
+class MQTTMessage: public Printable, public Print {
   public:
     MQTTMessage() = default;
-    MQTTMessage(const String& topic): MQTTTopic(topic) {}
+    MQTTMessage(const String& topic): topic(topic) {}
     MQTTMessage(const MQTTMessage& m);
+
+    MQTTTopic topic;
 
     /** @brief The message QoS level*/
     qos_t qos = qtAT_LEAST_ONCE;          
