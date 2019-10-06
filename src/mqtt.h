@@ -70,7 +70,7 @@
 /** @endcond */
 
 /** @brief Used to identify the type of a received packet */
-enum MQTTPacketType {ptBROKERCONNECT = 0, ptCONNECT = 1, ptCONNACK = 2, ptPUBLISH = 3, ptPUBACK = 4,
+enum packetType_t {ptBROKERCONNECT = 0, ptCONNECT = 1, ptCONNACK = 2, ptPUBLISH = 3, ptPUBACK = 4,
   ptPUBREC = 5, ptPUBREL = 6, ptPUBCOMP = 7, ptSUBSCRIBE = 8, ptSUBACK = 9, ptUNSUBSCRIBE = 10,
   ptUNSUBACK = 11, ptPINGREQ = 12, ptPINGRESP = 13, ptDISCONNECT = 14};
 
@@ -82,7 +82,7 @@ enum qos_t {
   qtMAX_VALUE = qtEXACTLY_ONCE
 };
 
-enum TokenKind_t {
+enum tokenKind_t {
   tkUnknown=0,
   tkInvalid,
   tkValid,
@@ -90,11 +90,15 @@ enum TokenKind_t {
   tkSingleLevel
 };
 
+class MQTTTopic;
+class MQTTSubscription;
+class MQTTMessage;
+
 class MQTTToken {
   public:
     MQTTToken() : kind(tkUnknown), next(nullptr) {};
     String text;
-    TokenKind_t kind;
+    tokenKind_t kind;
     MQTTToken* next;
 };
 
@@ -119,7 +123,6 @@ class MQTTTokenizer {
     void _tokenize(String text, MQTTToken* ptr);
 };
 
-class MQTTTopic;
 
 class MQTTFilter : public MQTTTokenizer {
   public:
@@ -141,6 +144,39 @@ class MQTTTopic : public MQTTTokenizer {
     virtual bool validate() override;
   private:
     bool validateToken(MQTTToken& token);    
+};
+
+using MQTTMessageHandlerFunc = bool (*)(MQTTSubscription& sub, MQTTMessage& msg);
+
+/** @brief Represents a client susbscriptions */
+class MQTTSubscription: MQTTFilter {
+  public:
+    MQTTSubscription() : MQTTFilter() {}
+    MQTTSubscription(const String &filter) : MQTTFilter(filter) {}
+    MQTTSubscription(const String &filter, qos_t q) : MQTTFilter(filter), qos_(q) {}
+    qos_t qos() const { return qos_; }
+    MQTTSubscription* const next() const { return next_; }    
+    void setQoS(qos_t q) { qos_ = q; }
+    void setNext(MQTTSubscription* next) { next_ = next; }
+    void setHandler(MQTTMessageHandlerFunc f) { handler_ = f; }
+  protected:
+    virtual bool handle(MQTTMessage& msg) { return handler_(*this,msg); }
+  private:
+    qos_t qos_;
+    MQTTSubscription* next_;
+    MQTTMessageHandlerFunc handler_ = nullptr;
+    friend class MQTTSubscriptionList;
+};
+
+/** @brief A linked list of MQTTSubscription objects */
+class MQTTSubscriptionList {
+  public:
+    MQTTSubscription* const first() const { return first_; };
+    void clear();
+    void push(MQTTSubscription* node) { last_->next_ = node; node->next_ = nullptr; }
+  private:
+    MQTTSubscription* first_;
+    MQTTSubscription* last_;
 };
 
 class MQTTClient;  // Forward declaration
@@ -232,13 +268,6 @@ class MQTTMessage: public Printable, public Print {
   private: 
     size_t data_size;      /**< The number of bytes allocated in the data buffer */
     size_t data_pos;       /**< Index of the next byte to be written */
-};
-
-/** @brief Structure for a linked list of subscriptions */
-struct subscription_t {
-  char filter[]; 
-  qos_t qos_;
-  subscription_t* next;
 };
 
 /** @struct  queuedMessage_t mqtt.h

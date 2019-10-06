@@ -237,12 +237,12 @@ bool MQTTFilter::match(const MQTTTopic& topic) const {
 
   while (filterPtr != nullptr) {
     if (i >= topic.count()) {
-      return (result && (filterPtr->kind == TokenKind_t::tkMultiLevel));
+      return (result && (filterPtr->kind == tokenKind_t::tkMultiLevel));
     }
     
     if (filterPtr->kind == tkInvalid) { 
       return false;
-    } else if (filterPtr->kind == TokenKind_t::tkValid) {
+    } else if (filterPtr->kind == tokenKind_t::tkValid) {
       result = (filterPtr->text == topicPtr->text);
       if (!result) return result;
     } else if (filterPtr->kind == tkMultiLevel) {
@@ -268,6 +268,21 @@ bool MQTTFilter::match(const MQTTTopic& topic) const {
   }
 
   return result;
+}
+
+/* MQTTSubscription */
+
+// All defined in header
+
+/* MQTTSubscriptionList */
+
+void MQTTSubscriptionList::clear() {
+  MQTTSubscription* ptr = first_;
+  while (ptr != nullptr) {
+    first_ = ptr->next_;
+    delete ptr;
+    ptr = first_;
+  }
 }
 
 /* MQTTMessage */
@@ -376,6 +391,7 @@ int MQTTMessage::peek() const {
   }
 }
 
+/** @brief  Writes a byte to the data buffer */
 size_t MQTTMessage::write(const byte c) {
   data_len++;
   if (data_size == 0) {
@@ -388,6 +404,7 @@ size_t MQTTMessage::write(const byte c) {
   return 1;
 }
  
+/** @brief Writes a block of data to the internal message data buffer */
 size_t MQTTMessage::write(const byte* buffer, const size_t size) {
   data_len += size;
    if (data_size == 0) {
