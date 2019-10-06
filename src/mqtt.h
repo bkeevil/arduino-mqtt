@@ -90,9 +90,14 @@ enum tokenKind_t {
   tkSingleLevel
 };
 
+// Forward Declarations
 class MQTTTopic;
+class MQTTFilter;
 class MQTTSubscription;
 class MQTTMessage;
+class MQTTClient;
+
+using MQTTMessageHandlerFunc = bool (*)(MQTTSubscription& sub, MQTTMessage& msg);
 
 class MQTTToken {
   public:
@@ -123,13 +128,13 @@ class MQTTTokenizer {
     void _tokenize(String text, MQTTToken* ptr);
 };
 
-
 class MQTTFilter : public MQTTTokenizer {
   public:
     MQTTFilter() : MQTTTokenizer() {}
     MQTTFilter(const String& filter) : MQTTTokenizer(filter) { valid_ = validate(); }
     bool match(const MQTTTopic& topic) const;
-  protected:
+    String& getFilter(String& filter) const { return getString(filter); }
+    bool setFilter(const String& filter) { return setString(filter); }  protected:
     virtual bool validate() override;
   private:
     bool validateToken(MQTTToken& token);
@@ -140,13 +145,13 @@ class MQTTTopic : public MQTTTokenizer {
     MQTTTopic() : MQTTTokenizer() {}
     MQTTTopic(const String& topic) : MQTTTokenizer(topic) { valid_ = validate(); }
     bool match(const MQTTFilter& filter) const { return filter.match(*this); };
+    String& getTopic(String& topic) const { return getString(topic); }
+    bool setTopic(const String& topic) { return setString(topic); }
   protected:
     virtual bool validate() override;
   private:
     bool validateToken(MQTTToken& token);    
 };
-
-using MQTTMessageHandlerFunc = bool (*)(MQTTSubscription& sub, MQTTMessage& msg);
 
 /** @brief Represents a client susbscriptions */
 class MQTTSubscription: MQTTFilter {
@@ -179,8 +184,6 @@ class MQTTSubscriptionList {
     MQTTSubscription* last_;
 };
 
-class MQTTClient;  // Forward declaration
-
 /** @class    MQTTMessage mqtt.h
  *  @brief    Represents an MQTT message that is sent or received 
  *  @details  Use the methods of the Print and Printable ancestor classes to access the message 
@@ -190,14 +193,11 @@ class MQTTClient;  // Forward declaration
  *            unused bytes.
  * @remark    The Print interface is used to write directly to the data buffer. 
  */
-class MQTTMessage: public Printable, public Print {
+class MQTTMessage: public MQTTTopic, public Printable, public Print {
   public:
     MQTTMessage() = default;
-    MQTTMessage(const String& topic_): topic(topic_) {}
+    MQTTMessage(const String& topic): MQTTTopic(topic) {}
     MQTTMessage(const MQTTMessage& m);
-
-    /** @brief The message topic*/
-    String topic;         
 
     /** @brief The message QoS level*/
     qos_t qos = qtAT_LEAST_ONCE;          
