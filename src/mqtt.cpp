@@ -2,6 +2,47 @@
 
 /* MQTTTokenizer */
 
+/** @brief  Copy Constructor */
+MQTTTokenizer::MQTTTokenizer(const MQTTTokenizer& rhs) {
+  count = rhs.count;
+  valid = rhs.valid;
+  if (rhs.first == nullptr) {
+    first = nullptr;
+  } else {
+    first = new MQTTToken(*rhs.first);
+    MQTTToken* ptr_rhs = rhs.first->next;
+    MQTTToken* ptr_lhs = first;
+    while (ptr_rhs != nullptr) {
+      ptr_lhs->next = new MQTTToken(*ptr_rhs);
+      ptr_lhs = ptr_lhs->next;
+      ptr_rhs = ptr_rhs->next;
+    }
+  }
+}
+  
+/** @brief  Move Constructor */
+MQTTTokenizer::MQTTTokenizer(MQTTTokenizer&& rhs) {
+  count = rhs.count;
+  valid = rhs.valid;
+  first = rhs.first;
+  rhs.first = nullptr;
+  rhs.count = 0;
+  rhs.valid = false;
+}
+
+/** @brief  Move assignment operator */
+
+MQTTTokenizer& MQTTTokenizer::operator=(MQTTTokenizer&& rhs) {
+  if (&rhs == this) return *this;
+  count = rhs.count;
+  valid = rhs.valid;
+  first = rhs.first;
+  rhs.first = nullptr;
+  rhs.count = 0;
+  rhs.valid = false;
+  return *this;  
+}
+
 /** @brief  Parse a topic name or topic filter string into a linked list of tokens
  *  @param  text  The topic or filter sting to Parse
  */
@@ -21,9 +62,6 @@ void MQTTTokenizer::tokenize(const String& text) {
       _tokenize(text, ptr);
     }
   }
-
-  String s;
-  //Serial.print("  getString="); Serial.println(getString(s));
 }
 
 /** @brief  Recursively tokenize text and add the tokens to the linked list.
@@ -33,12 +71,12 @@ void MQTTTokenizer::_tokenize(String text, MQTTToken* ptr) {
   MQTTToken* node = new MQTTToken;
 
   if (ptr == nullptr) {
-    first_ = node;
+    first = node;
   } else {
     ptr->next = node;
   }
       
-  ++count_;
+  ++count;
   
   int pos = text.indexOf('/');
   if (pos < 0) {
@@ -49,38 +87,35 @@ void MQTTTokenizer::_tokenize(String text, MQTTToken* ptr) {
       _tokenize(text.substring(pos+1),node); 
     }
   }
-
 }
 
 String& MQTTTokenizer::getString(String& s) const {
   int i=0;
   int size=0;
   MQTTToken* ptr;
-
-  s = "";
  
-  ptr = first_;
+  // Determine how long the string needs to be
+  ptr = first;
   while (ptr != nullptr) {
     switch (ptr->kind) {
       case tkSingleLevel: ++size; break;
       case tkMultiLevel: ++size; break;
       case tkValid: size += ptr->text.length(); break;
     }    
-    ++size;
     ptr = ptr->next;
   }
 
-  s.reserve(size-1);
+  s = "";
+  s.reserve(size); 
 
-  ptr = first_;
+  ptr = first;
   while (ptr != nullptr) {
-  
     switch (ptr->kind) {
       case tkSingleLevel: s += '+'; break;
       case tkMultiLevel: s += '#'; break;
       case tkValid: s += ptr->text; break;
     }
-    if (i < count_ - 1) {
+    if (i < count - 1) {
       s += '/';
     }
     ++i;
@@ -92,13 +127,13 @@ String& MQTTTokenizer::getString(String& s) const {
 
 void MQTTTokenizer::clear() {
   MQTTToken* ptr;
-  while (first_ != nullptr) {
-    ptr = first_->next;
-    delete first_;
-    first_ = ptr; 
+  while (first != nullptr) {
+    ptr = first->next;
+    delete first;
+    first = ptr;
   }
-  first_ = nullptr;
-  count_ = 0;
+  first = nullptr;
+  count = 0;
 }
 
 /* MQTTTopic */
@@ -112,9 +147,9 @@ bool MQTTTopic::validate() {
   MQTTToken* ptr;
 
   // An empty topic string is invalid
-  if (count() == 0) return false;
+  if (count == 0) return false;
   
-  ptr = first();
+  ptr = first;
   while (ptr != nullptr) {
     if (!validateToken(*ptr)) {
       clear();
@@ -154,11 +189,11 @@ bool MQTTFilter::validate() {
   MQTTToken* ptr;
 
   // An empty filter string is invalid
-  if (first() == nullptr) {
+  if (first == nullptr) {
     return false;
   }
 
-  ptr = first();
+  ptr = first;
   while (ptr != nullptr) {
     if (!validateToken(*ptr)) {
       clear();
@@ -232,11 +267,11 @@ bool MQTTFilter::match(const MQTTTopic& topic) const {
   MQTTToken* topicPtr;
   String s;
 
-  filterPtr = first();
-  topicPtr  = topic.first();
+  filterPtr = first;
+  topicPtr  = topic.first;
 
   while (filterPtr != nullptr) {
-    if (i >= topic.count()) {
+    if (i >= topic.count) {
       return (result && (filterPtr->kind == tokenKind_t::tkMultiLevel));
     }
     
@@ -256,11 +291,11 @@ bool MQTTFilter::match(const MQTTTopic& topic) const {
     topicPtr = topicPtr->next;
   }
   
-  if (count() < topic.count()) {
+  if (count < topic.count) {
     // Retrieve the count - 1 token from the filter list
     i = 0;
-    filterPtr = first();
-    while ((filterPtr != nullptr) && (i < count() - 1)) {
+    filterPtr = first;
+    while ((filterPtr != nullptr) && (i < count - 1)) {
       ++i;
       filterPtr = filterPtr->next;
     }
@@ -270,19 +305,71 @@ bool MQTTFilter::match(const MQTTTopic& topic) const {
   return result;
 }
 
+/** @brief    Returns true if the filters are equal
+ *  @param    filter  The filter to compare
+ *  @Returns  True if the filters are an exact match
+ */   
+bool MQTTFilter::equals(const MQTTFilter& filter) const {
+  MQTTToken* lhs = first;
+  MQTTToken* rhs = filter.first;
+
+  while (lhs != nullptr) {
+    if ((rhs == nullptr) || (lhs->kind == tkInvalid) || (rhs->kind == tkInvalid) || (lhs->kind != rhs->kind) || ((lhs->kind == tkValid) && !lhs->text.equals(rhs->text))) {
+      return false;
+    }
+    lhs = lhs->next;
+    rhs = rhs->next;
+  }
+  
+  return (rhs == nullptr);
+}
+
 /* MQTTSubscription */
 
-// All defined in header
 
 /* MQTTSubscriptionList */
 
 void MQTTSubscriptionList::clear() {
-  MQTTSubscription* ptr = first_;
+  MQTTSubscription* ptr = first;
   while (ptr != nullptr) {
-    first_ = ptr->next_;
+    first = ptr->next;
     delete ptr;
-    ptr = first_;
+    ptr = first;
   }
+}
+
+void MQTTSubscriptionList::add(MQTTSubscriptionList& subs) {
+  MQTTSubscription* ptr;
+  MQTTSubscription* rhs_ptr;
+  MQTTSubscription* lhs_ptr;
+
+  rhs_ptr = subs.first;
+  subs.first = nullptr;
+  while (rhs_ptr != nullptr) {
+    lhs_ptr = find(rhs_ptr->filter);
+    if (lhs_ptr == nullptr) {
+      lhs_ptr = new MQTTSubscription(std::move(*rhs_ptr));
+      push(lhs_ptr);
+    } else {
+      lhs_ptr->filter = std::move(rhs_ptr->filter);
+      lhs_ptr->handler_ = rhs_ptr->handler_;
+      lhs_ptr->qos = rhs_ptr->qos;
+      lhs_ptr->sent = rhs_ptr->sent;
+    }
+    ptr = rhs_ptr;
+    rhs_ptr = rhs_ptr->next;
+    delete ptr;
+  }
+
+}
+
+MQTTSubscription* MQTTSubscriptionList::find(MQTTFilter& filter) {
+  MQTTSubscription* ptr = first;
+  while (ptr != nullptr) {
+    if (ptr->filter.equals(filter)) return ptr;
+    ptr = ptr->next;
+  }
+  return nullptr;
 }
 
 /* MQTTMessage */
@@ -833,10 +920,21 @@ byte MQTTClient::intervalTimer() {
   }
 }
 
-bool MQTTClient::subscribe(const word packetid, const String& filter, const qos_t qos) {
+bool MQTTClient::subscribe(MQTTSubscriptionList& subs) {
+  if (isConnected) sendSUBSCRIBE(subs);
+  subscriptions_.add(subs);
+}
+
+bool MQTTClient::subscribe(const String& filter, const qos_t qos, const MQTTMessageHandlerFunc handler) {
+  MQTTSubscriptionList subs;
+  subs.push(new MQTTSubscription(filter,qos,handler));
+  subscribe(subs);
+}
+
+bool MQTTClient::sendSUBSCRIBE(const MQTTSubscriptionList& subscriptions) {
   bool result;
 
-  if (filter != NULL) {
+/*  if (filter != NULL) {
     result = (stream.write((byte)0x82) == 1);
     result &= writeRemainingLength(2 + 2 + 1 + filter.length());
     result &= writeWord(packetid);
@@ -845,7 +943,7 @@ bool MQTTClient::subscribe(const word packetid, const String& filter, const qos_
     return result;
   } else {
     return false;
-  }
+  }*/
 }
 
 byte MQTTClient::recvSUBACK(const long remainingLength) {
@@ -879,7 +977,8 @@ byte MQTTClient::recvSUBACK(const long remainingLength) {
   }
 }
 
-bool MQTTClient::unsubscribe(const word packetid, const String& filter) {
+bool MQTTClient::unsubscribe(const String& filter) {
+  /*
   bool result;
 
   if (filter != NULL) {
@@ -890,7 +989,7 @@ bool MQTTClient::unsubscribe(const word packetid, const String& filter) {
     return result;
   } else {
     return false;
-  }
+  }*/
 }
 
 byte MQTTClient::recvUNSUBACK() {
@@ -956,9 +1055,9 @@ bool MQTTClient::sendPUBLISH(MQTTMessage* msg) {
         remainingLength += 2;
       }
 
-      packetid = nextPacketID++;
-      if (nextPacketID >= MQTT_MAX_PACKETID) {
-        nextPacketID = MQTT_MIN_PACKETID;
+      packetid = nextPacketID_++;
+      if (nextPacketID_ >= MQTT_MAX_PACKETID) {
+        nextPacketID_ = MQTT_MIN_PACKETID;
       }
 
       #ifdef DEBUG

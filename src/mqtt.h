@@ -17,6 +17,8 @@
 
 #define DEBUG
 
+// Compile time configuration settings
+
 #define MQTT_DEFAULT_PING_INTERVAL               20 /**< The number of seconds between pings. Must be less than MQTT_PACKET_TIMEOUT */
 #define MQTT_DEFAULT_PING_RETRY_INTERVAL          6 /**< Frequency of pings in seconds after a failed ping response */
 #define MQTT_DEFAULT_KEEPALIVE                   30 /**< Number of seconds of inactivity before disconnect */
@@ -97,11 +99,13 @@ class MQTTSubscription;
 class MQTTMessage;
 class MQTTClient;
 
-using MQTTMessageHandlerFunc = bool (*)(MQTTSubscription& sub, MQTTMessage& msg);
+using MQTTMessageHandlerFunc = bool (*)(const MQTTSubscription& sub, const MQTTMessage& msg);
+using MQTTDefaultMessageHandlerFunc = void (*)(const MQTTMessage& msg);
 
 class MQTTToken {
   public:
     MQTTToken() : kind(tkUnknown), next(nullptr) {};
+    MQTTToken(const MQTTToken& rhs) : text(rhs.text), kind(rhs.kind), next(nullptr) {}
     String text;
     tokenKind_t kind;
     MQTTToken* next;
@@ -109,21 +113,20 @@ class MQTTToken {
 
 class MQTTTokenizer {
   public:
-    MQTTTokenizer() : count_(0), first_(nullptr), valid_(false) {}
-    MQTTTokenizer(const String& text) : count_(0), first_(nullptr) { tokenize(text); }
+    MQTTTokenizer() : count(0), first(nullptr), valid(false) {}
+    MQTTTokenizer(const String& text) : count(0), first(nullptr) { tokenize(text); }
+    MQTTTokenizer(const MQTTTokenizer& rhs);
+    MQTTTokenizer(MQTTTokenizer&& rhs);
+    MQTTTokenizer& operator=(MQTTTokenizer&& rhs);
     ~MQTTTokenizer() { clear(); }
     void clear();
-    bool valid() const { return valid_; }
-    byte count() const { return count_; }
-    MQTTToken* first() const { return first_; }
     bool setString(const String& s) { tokenize(s); return validate(); }; 
     String& getString(String& s) const; 
-  protected:
+    byte count;
+    MQTTToken* first;
+    bool valid;  protected:
     void tokenize(const String& text);
     virtual bool validate() = 0;
-    byte count_;
-    MQTTToken* first_;
-    bool valid_;
   private:
     void _tokenize(String text, MQTTToken* ptr);
 };
@@ -131,8 +134,12 @@ class MQTTTokenizer {
 class MQTTFilter : public MQTTTokenizer {
   public:
     MQTTFilter() : MQTTTokenizer() {}
-    MQTTFilter(const String& filter) : MQTTTokenizer(filter) { valid_ = validate(); }
+    MQTTFilter(const String& filter) : MQTTTokenizer(filter) { valid = validate(); }
+    MQTTFilter(const MQTTFilter& rhs) : MQTTTokenizer(rhs) {}
+    MQTTFilter(MQTTFilter&& rhs) : MQTTTokenizer(std::move(rhs)) {}
+    MQTTFilter& operator=(MQTTFilter&& rhs) { MQTTTokenizer::operator=(std::move(rhs)); return *this; }
     bool match(const MQTTTopic& topic) const;
+    bool equals(const MQTTFilter& filter) const;
     virtual bool validate() override;
   private:
     bool validateToken(MQTTToken& token);
@@ -141,7 +148,9 @@ class MQTTFilter : public MQTTTokenizer {
 class MQTTTopic : public MQTTTokenizer {
   public:
     MQTTTopic() : MQTTTokenizer() {}
-    MQTTTopic(const String& topic) : MQTTTokenizer(topic) { valid_ = validate(); }
+    MQTTTopic(const String& topic) : MQTTTokenizer(topic) { valid = validate(); }
+    MQTTTopic(const MQTTTopic& rhs) : MQTTTokenizer(rhs) {}
+    MQTTTopic(MQTTTopic&& rhs) : MQTTTokenizer(std::move(rhs)) {}
     bool match(const MQTTFilter& filter) const { return filter.match(*this); };
   protected:
     virtual bool validate() override;
@@ -152,33 +161,30 @@ class MQTTTopic : public MQTTTokenizer {
 /** @brief Represents a client susbscriptions */
 class MQTTSubscription {
   public:
-    MQTTSubscription() = default;
-    MQTTSubscription(const String &filter) : filter_(filter) {}
-    MQTTSubscription(const String &filter, qos_t q) : filter_(filter), qos_(q) {}
-    MQTTFilter& filter() { return filter_; }
-    qos_t qos() const { return qos_; }
-    MQTTSubscription* const next() const { return next_; }    
-    void setQoS(qos_t q) { qos_ = q; }
-    void setNext(MQTTSubscription* next) { next_ = next; }
-    void setHandler(MQTTMessageHandlerFunc f) { handler_ = f; }
+    MQTTSubscription(const String &filter) : filter(filter), qos(qtAT_MOST_ONCE), handler_(nullptr), sent(false) {}
+    MQTTSubscription(const String &filter, const qos_t q, const MQTTMessageHandlerFunc f) : filter(filter), qos(q), handler_(f), sent(false) {}
+    MQTTSubscription(const MQTTSubscription& rhs) : qos(rhs.qos), filter(rhs.filter), next(nullptr), sent(rhs.sent), handler_(rhs.handler_) {}
+    qos_t qos;
+    MQTTFilter filter;
+    MQTTSubscription* next;
+    bool sent;
   protected:
     virtual bool handle(MQTTMessage& msg) { return handler_(*this,msg); }
-    friend class MQTTSubscriptionList;
   private:
-    qos_t qos_;
-    MQTTFilter filter_;
-    MQTTSubscription* next_;
     MQTTMessageHandlerFunc handler_ = nullptr;
+    friend class MQTTSubscriptionList;
 };
 
 /** @brief A linked list of MQTTSubscription objects */
 class MQTTSubscriptionList {
   public:
-    MQTTSubscription* const first() const { return first_; };
+    ~MQTTSubscriptionList() { clear(); }
     void clear();
-    void push(MQTTSubscription* node) { last_->next_ = node; node->next_ = nullptr; }
+    void push(MQTTSubscription* node) { last_->next = node; node->next = nullptr; last_ = last_->next; }
+    void add(MQTTSubscriptionList& subs);
+    MQTTSubscription* find(MQTTFilter& filter);
+    MQTTSubscription* first;
   private:
-    MQTTSubscription* first_;
     MQTTSubscription* last_;
 };
 
@@ -399,7 +405,7 @@ class MQTTClient: public MQTTBase {
 
     bool isConnected;
     // Constructor/Destructor
-    MQTTClient(Stream& stream): MQTTBase(stream), PUBLISHQueue(this), PUBRECQueue(this), PUBRELQueue(this) {} 
+    MQTTClient(Stream& stream): MQTTBase(stream), PUBLISHQueue(this), PUBRECQueue(this), PUBRELQueue(this), nextPacketID_(MQTT_MIN_PACKETID), defaultHandler_(nullptr) {} 
     // Outgoing events - Override in descendant classes
     virtual void connected();
     
@@ -410,14 +416,17 @@ class MQTTClient: public MQTTBase {
     virtual void initSession() {};
     virtual void subscribed(const word packetID, const byte resultCode) {};
     virtual void unsubscribed(const word packetID) {};
-    virtual void receiveMessage(const MQTTMessage& msg) {};
+    virtual void receiveMessage(const MQTTMessage& msg) { defaultHandler_(msg); }
     // Main Interface Methods
     bool connect(const String& clientID, const String& username, const String& password, const bool cleanSession = true, const word keepAlive = MQTT_DEFAULT_KEEPALIVE);
     
     /** @brief Disconnects the MQTT connection */
     void disconnect();
-    bool subscribe(const word packetid, const String& filter, const qos_t qos = qtAT_MOST_ONCE);
-    bool unsubscribe(const word packetid, const String& filter);
+    
+    void registerDefaultMessageHandler(MQTTDefaultMessageHandlerFunc handler) { defaultHandler_ = handler; }
+    bool subscribe(MQTTSubscriptionList& subscriptions);
+    bool subscribe(const String& filter, const qos_t qos = qtAT_MOST_ONCE, const MQTTMessageHandlerFunc handler = nullptr); 
+    bool unsubscribe(const String& filter);
 
     /** @brief   Publish a message to the server.
      *  @remark  In this version of the function, data is provided as a pointer to a buffer.
@@ -442,9 +451,11 @@ class MQTTClient: public MQTTBase {
     MQTTPUBLISHQueue  PUBLISHQueue;         /**< Outgoing QOS1 or QOS2 Publish Messages that have not been acknowledged */
     MQTTPUBRECQueue   PUBRECQueue;          /**< Incoming QOS2 messages that have not been acknowledged */
     MQTTPUBRELQueue   PUBRELQueue;          /**< Outgoing QOS2 messages that have not been released */
-    word nextPacketID = MQTT_MIN_PACKETID;  /**< Packet IDs 0..255 are used for subscriptions */
+    word nextPacketID_;  
     int  pingIntervalRemaining;
     byte pingCount;
+    MQTTDefaultMessageHandlerFunc defaultHandler_;
+    MQTTSubscriptionList subscriptions_;
     //
     void reset();
     byte pingInterval();
@@ -467,6 +478,7 @@ class MQTTClient: public MQTTBase {
     bool sendPUBREL(const word packetid);
     bool sendPUBREC(const word packetid);
     bool sendPUBCOMP(const word packetid);
+    bool sendSUBSCRIBE(const MQTTSubscriptionList& subscriptions);
     //  
     friend class MQTTPUBLISHQueue;
     friend class MQTTPUBRECQueue;
