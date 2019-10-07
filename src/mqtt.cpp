@@ -1,5 +1,101 @@
 #include "mqtt.h"
 
+/* MQTTPacket */
+
+/** @brief Copy constructor */
+MQTTPacket::MQTTPacket(const MQTTPacket& rhs) {
+  
+}
+
+/** @brief Move constructor */
+MQTTPacket::MQTTPacket(MQTTPacket&& rhs) noexcept {
+
+}
+
+/** @brief Copy assignment operator */
+MQTTPacket& MQTTPacket::operator=(const MQTTPacket& rhs) {
+  if (this == &rhs) return *this;
+} 
+
+/** @brief Move assignment operator */
+MQTTPacket& MQTTPacket::operator=(MQTTPacket&& rhs) noexcept {
+  if (this == &rhs) return *this;
+}
+
+/** @brief Clears and destroys the stack */
+void MQTTPacket::stack_clear(MQTTPacket* top) {
+  MQTTPacket* ptr = top;
+  MQTTPacket* node;
+
+  while (ptr != nullptr) {
+    node = ptr;
+    ptr = ptr->next;
+    delete node;  
+  }
+
+  top = nullptr;
+}
+
+/** @brief Adds node to the top of the stack */
+void MQTTPacket::stack_push(MQTTPacket* top, MQTTPacket* node) {
+  if (node != nullptr) {
+    if (top == nullptr) {
+      top = node;
+    } else {
+      node->next = top;
+      top = node;
+    }
+  }
+}
+
+/** @brief Removes and returns the first item from the stack */
+MQTTPacket* MQTTPacket::stack_pop(MQTTPacket* top) {
+  if (top == nullptr) {
+    return nullptr;
+  } else {
+    MQTTPacket* node = top;
+    top = top->next;
+    return node;
+  }
+}
+
+/** @brief Decrements the timeout value retransmits packets as necessary */
+void MQTTPacket::stack_interval(MQTTPacket* top) {
+  MQTTPacket* prev = nullptr;
+  MQTTPacket* ptr = top;
+
+  while (ptr != nullptr) {
+    if (--ptr->timeout == 0) {
+      if (++ptr->retries >= MQTT_PACKET_RETRIES) {
+        if (prev == nullptr) {
+          top = ptr->next;
+        } else {
+          prev->next = ptr->next;
+        }
+        delete ptr;
+        Serial.println("Packet deleted: Too many packet resends");
+      } else {
+        ptr->timeout = MQTT_PACKET_TIMEOUT;
+        ptr->retransmit();
+        Serial.println("Packet timeout: Resending packet");
+      }
+    }
+    prev = ptr;
+    ptr = ptr->next;
+  }
+}
+
+/** @brief Returns a count of the number of items in the stack */
+const int MQTTPacket::stack_count(const MQTTPacket* top) {
+  int count = 0;
+  MQTTPacket* ptr = top;
+  while (ptr != nullptr) {
+    ++count;
+    ptr = ptr->next;
+  }
+  return count;
+}
+
 /* MQTTTokenizer */
 
 /** @brief  Copy Constructor */
@@ -46,7 +142,7 @@ MQTTTokenizer& MQTTTokenizer::operator=(MQTTTokenizer&& rhs) {
 /** @brief  Parse a topic name or topic filter string into a linked list of tokens
  *  @param  text  The topic or filter sting to Parse
  */
-void MQTTTokenizer::tokenize(const String& text) {
+void MQTTTokenizer::tokenize() {
   clear();
   MQTTToken* ptr = nullptr;
   int len = text.length();
@@ -89,7 +185,7 @@ void MQTTTokenizer::_tokenize(String text, MQTTToken* ptr) {
   }
 }
 
-String& MQTTTokenizer::getString(String& s) const {
+/*String& MQTTTokenizer::getString(String& s) const {
   int i=0;
   int size=0;
   MQTTToken* ptr;
@@ -123,7 +219,7 @@ String& MQTTTokenizer::getString(String& s) const {
   }
 
   return s;
-}
+}*/
 
 void MQTTTokenizer::clear() {
   MQTTToken* ptr;
@@ -134,6 +230,7 @@ void MQTTTokenizer::clear() {
   }
   first = nullptr;
   count = 0;
+  text = "";
 }
 
 /* MQTTTopic */
@@ -338,7 +435,7 @@ void MQTTSubscriptionList::clear() {
   }
 }
 
-void MQTTSubscriptionList::add(MQTTSubscriptionList& subs) {
+void MQTTSubscriptionList::push(MQTTSubscriptionList& subs) {
   MQTTSubscription* ptr;
   MQTTSubscription* rhs_ptr;
   MQTTSubscription* lhs_ptr;
@@ -377,7 +474,7 @@ MQTTSubscription* MQTTSubscriptionList::find(MQTTFilter& filter) {
 /** @brief    Copy constructor */
 MQTTMessage::MQTTMessage(const MQTTMessage& m): qos(m.qos), duplicate(m.duplicate), retain(m.retain), data_len(m.data_len), data_size(m.data_len), data_pos(m.data_len) {
   String s;
-  topic.setString(m.topic.getString(s));  //TODO: MQTTTopic, MQTTFilter, and MQTTTokenizer copy and move constructors
+  topic.setText(m.topic.text);  //TODO: MQTTTopic, MQTTFilter, and MQTTTokenizer copy and move constructors
   data = (byte*) malloc(data_len);
   memcpy(data,m.data,data_len);
 }
@@ -520,59 +617,6 @@ void MQTTMessageQueue::clear() {
   }
   first = NULL;
   last = NULL;
-}
-
-bool MQTTMessageQueue::interval() {
-  bool result = true;
-  queuedMessage_t* qm;
-
-  qm = pop();
-  if (qm != NULL) {
-    Serial.println("Queue Message Popped");
-    if (--qm->timeout == 0) {
-      if (++qm->retries >= MQTT_PACKET_RETRIES) {
-        result = false;
-        delete qm->message;
-        free(qm);
-        Serial.println("Too many packet resent retries");
-      } else {
-        qm->timeout = MQTT_PACKET_TIMEOUT;
-        push(qm);
-        resend(qm);
-        Serial.println("Resending packet");
-      }
-    }
-  }
-  return result;
-}
-
-void MQTTMessageQueue::push(queuedMessage_t* qm) {
-  
-  if (last != NULL) {
-    last->next = qm;
-    qm->next = NULL;
-    last = qm;
-  } else {
-    first = qm;
-    last = qm;
-    qm->next = NULL;
-  }
-  count++;
-}
-
-queuedMessage_t* MQTTMessageQueue::pop() {
-  queuedMessage_t* ptr;
-  if (first != NULL) {
-    ptr = first;
-    first = first->next;
-    count--;
-    if (count == 0) {
-      last = NULL;
-    }
-    return ptr;
-  } else {
-    return NULL;
-  }
 }
 
 void MQTTPUBLISHQueue::resend(queuedMessage_t* qm) { 
@@ -738,8 +782,7 @@ bool MQTTClient::connect(const String& clientID, const String& username, const S
     flags |= 32;
   }
 
-  String wmt;
-  willMessage.topic.getString(wmt);
+  String& wmt = willMessage.topic.getText();
 
   flags |= (willMessage.qos << 3);
   if (willMessage.enabled) {
@@ -920,30 +963,83 @@ byte MQTTClient::intervalTimer() {
   }
 }
 
+word MQTTClient::getNextPacketID() {
+  if (nextPacketID == 65535) {
+    nextPacketID = 0;
+  } else
+    nextPacketID++;
+  
+  return nextPacketID;
+}
+
 bool MQTTClient::subscribe(MQTTSubscriptionList& subs) {
   if (isConnected) sendSUBSCRIBE(subs);
-  subscriptions_.add(subs);
+  subscriptions_.push(subs);
 }
 
 bool MQTTClient::subscribe(const String& filter, const qos_t qos, const MQTTMessageHandlerFunc handler) {
   MQTTSubscriptionList subs;
-  subs.push(new MQTTSubscription(filter,qos,handler));
-  subscribe(subs);
+  MQTTSubscription* sub = new MQTTSubscription(filter,qos,handler);
+  if (sub->filter.valid) {
+    subs.push(sub);
+    subscribe(subs);
+  }
 }
 
+/** @brief  Creates an MQTT Subscribe packet from a list of subscriptions and sends it to the server */
 bool MQTTClient::sendSUBSCRIBE(const MQTTSubscriptionList& subscriptions) {
   bool result;
+  MQTTSubscription* sub;
+  int rl = 2;
+  word packetid = getNextPacketID();
 
-/*  if (filter != NULL) {
-    result = (stream.write((byte)0x82) == 1);
-    result &= writeRemainingLength(2 + 2 + 1 + filter.length());
-    result &= writeWord(packetid);
-    result &= writeStr(filter);
-    result &= (stream.write(qos) == 1);
-    return result;
+  /** The payload of a SUBSCRIBE packet MUST contain at least one Topic Filter / QoS pair. 
+   * A SUBSCRIBE packet with no payload is a protocol violation [MQTT-3.8.3-3] */
+  if (subscriptions.first == nullptr) return false;
+  
+  sub = subscriptions.first;
+  while (sub != nullptr) {
+    rl += (3 + sub->filter.getText().length());  // Not very efficient
+    sub = sub->next;
+  }
+
+  result = (stream.write((byte)0x82) == 1);
+  result &= writeRemainingLength(rl);
+  result &= writeWord(packetid);
+
+  if (!result) return result;
+
+  sub = subscriptions.first;
+  while (sub != nullptr) {
+    result &= writeStr(sub->filter.getText());
+    result &= (stream.write(sub->qos) == 1);
+    if (!result) return result;
+    sub = sub->next;
+  }
+    
+  MQTTSubscriptionListWaitingAck* node = new MQTTSubscriptionListWaitingAck;
+  
+  node->packetid = packetid;
+  node->list = subscriptions;
+  node->retries = 0;
+  node->timeout = MQTT_PACKET_TIMEOUT;
+  node->next = nullptr;
+
+  if (subsWaitingAck_ == nullptr) {
+    subsWaitingAck_ = node;
   } else {
-    return false;
-  }*/
+    MQTTSubscriptionListWaitingAck* ptr = subsWaitingAck_;
+    while (ptr != nullptr) {
+      if (ptr->next = nullptr) {
+        ptr->next = node;
+        ptr = nullptr;
+      } else {
+        ptr = ptr->next;
+      }
+    }
+  }
+  
+  return result;
 }
 
 byte MQTTClient::recvSUBACK(const long remainingLength) {
@@ -1038,8 +1134,9 @@ bool MQTTClient::sendPUBLISH(MQTTMessage* msg) {
     #ifdef DEBUG
     Serial.println("sending PUBLISH");
     #endif
-    String mt;
-    msg->topic.getString(mt);
+    
+    String& mt = msg->topic.getText();
+    
     if ((mt.length()>0) && (msg->qos < qtMAX_VALUE) && (isConnected)) {
 
       flags |= (msg->qos << 1);
@@ -1055,10 +1152,7 @@ bool MQTTClient::sendPUBLISH(MQTTMessage* msg) {
         remainingLength += 2;
       }
 
-      packetid = nextPacketID_++;
-      if (nextPacketID_ >= MQTT_MAX_PACKETID) {
-        nextPacketID_ = MQTT_MIN_PACKETID;
-      }
+      packetid = getNextPacketID();
 
       #ifdef DEBUG
       Serial.print("flags="); Serial.println(flags);

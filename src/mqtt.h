@@ -6,8 +6,6 @@
  *  @copyright  GNU General Public License Version 3
  */
 
-// TODO: WillMessage should be converted to an MQTTMessage object
-
 #ifndef MQTT_H
 #define MQTT_H
 
@@ -22,8 +20,6 @@
 #define MQTT_DEFAULT_PING_INTERVAL               20 /**< The number of seconds between pings. Must be less than MQTT_PACKET_TIMEOUT */
 #define MQTT_DEFAULT_PING_RETRY_INTERVAL          6 /**< Frequency of pings in seconds after a failed ping response */
 #define MQTT_DEFAULT_KEEPALIVE                   30 /**< Number of seconds of inactivity before disconnect */
-#define MQTT_MIN_PACKETID                       256 /**< The first 256 packet IDs are reserved for subscribe/unsubscribe packet ids */
-#define MQTT_MAX_PACKETID                     65535 /**< The maximum packet ID that can be assigned */
 #define MQTT_PACKET_TIMEOUT                       3 /**< Number of seconds before a packet is resent */
 #define MQTT_PACKET_RETRIES                       2 /**< Number of retry attempts to send a packet before the connection is considered dead */
 #define MQTT_MESSAGE_ALLOC_BLOCK_SIZE             8 /**< When writing a message data buffer, this much memory will be allocated at a time */
@@ -71,10 +67,7 @@
 
 /** @endcond */
 
-/** @brief Used to identify the type of a received packet */
-enum packetType_t {ptBROKERCONNECT = 0, ptCONNECT = 1, ptCONNACK = 2, ptPUBLISH = 3, ptPUBACK = 4,
-  ptPUBREC = 5, ptPUBREL = 6, ptPUBCOMP = 7, ptSUBSCRIBE = 8, ptSUBACK = 9, ptUNSUBSCRIBE = 10,
-  ptUNSUBACK = 11, ptPINGREQ = 12, ptPINGRESP = 13, ptDISCONNECT = 14};
+enum mqttEvent_t {evCONNECTED = 0, evINIT_SESSION, evDISCONNECTED, evMAX}
 
 /** Quality of Service Levels */
 enum qos_t {
@@ -99,6 +92,7 @@ class MQTTSubscription;
 class MQTTMessage;
 class MQTTClient;
 
+using MQTTEventHandlerFunc = void (*)();
 using MQTTMessageHandlerFunc = bool (*)(const MQTTSubscription& sub, const MQTTMessage& msg);
 using MQTTDefaultMessageHandlerFunc = void (*)(const MQTTMessage& msg);
 
@@ -114,21 +108,22 @@ class MQTTToken {
 class MQTTTokenizer {
   public:
     MQTTTokenizer() : count(0), first(nullptr), valid(false) {}
-    MQTTTokenizer(const String& text) : count(0), first(nullptr) { tokenize(text); }
+    MQTTTokenizer(const String& text) : count(0), first(nullptr), text(text), valid(false) { tokenize(); }
     MQTTTokenizer(const MQTTTokenizer& rhs);
     MQTTTokenizer(MQTTTokenizer&& rhs);
     MQTTTokenizer& operator=(MQTTTokenizer&& rhs);
     ~MQTTTokenizer() { clear(); }
     void clear();
-    bool setString(const String& s) { tokenize(s); return validate(); }; 
-    String& getString(String& s) const; 
+    bool setText(const String& s) { text = s; tokenize(); return validate(); }; 
+    const String& getText() const { return text; } 
     byte count;
     MQTTToken* first;
     bool valid;  protected:
-    void tokenize(const String& text);
+    void tokenize();
     virtual bool validate() = 0;
   private:
     void _tokenize(String text, MQTTToken* ptr);
+    String text;
 };
 
 class MQTTFilter : public MQTTTokenizer {
@@ -180,14 +175,25 @@ class MQTTSubscriptionList {
   public:
     ~MQTTSubscriptionList() { clear(); }
     void clear();
-    void push(MQTTSubscription* node) { last_->next = node; node->next = nullptr; last_ = last_->next; }
-    void add(MQTTSubscriptionList& subs);
+    //MQTTSubscription* pop() { MQTTSubscription* ptr = first; if (first != nullptr) first = first->next; if (first == nullptr) last = nullptr; return ptr; }
+    void push(MQTTSubscription* node) { last->next = node; node->next = nullptr; last = last->next; }
+    void push(MQTTSubscriptionList& subs);
     MQTTSubscription* find(MQTTFilter& filter);
     MQTTSubscription* first;
   private:
-    MQTTSubscription* last_;
+    MQTTSubscription* last;
 };
 
+struct MQTTSubscriptionListWaitingAck {
+  word packetid;
+  MQTTSubscriptionList* list;
+  word retries;
+  word timeout;
+  MQTTSubscriptionListWaitingAck* next;
+};
+
+class 
+/** @brief  A linked list of MQTTSubscriptionList 
 /** @class    MQTTMessage mqtt.h
  *  @brief    Represents an MQTT message that is sent or received 
  *  @details  Use the methods of the Print and Printable ancestor classes to access the message 
@@ -405,7 +411,8 @@ class MQTTClient: public MQTTBase {
 
     bool isConnected;
     // Constructor/Destructor
-    MQTTClient(Stream& stream): MQTTBase(stream), PUBLISHQueue(this), PUBRECQueue(this), PUBRELQueue(this), nextPacketID_(MQTT_MIN_PACKETID), defaultHandler_(nullptr) {} 
+    MQTTClient(Stream& stream): MQTTBase(stream), PUBLISHQueue(this), PUBRECQueue(this), PUBRELQueue(this), nextPacketID(0), defaultHandler_(nullptr), subsWaitingAck_(nullptr) {} 
+    
     // Outgoing events - Override in descendant classes
     virtual void connected();
     
@@ -451,11 +458,12 @@ class MQTTClient: public MQTTBase {
     MQTTPUBLISHQueue  PUBLISHQueue;         /**< Outgoing QOS1 or QOS2 Publish Messages that have not been acknowledged */
     MQTTPUBRECQueue   PUBRECQueue;          /**< Incoming QOS2 messages that have not been acknowledged */
     MQTTPUBRELQueue   PUBRELQueue;          /**< Outgoing QOS2 messages that have not been released */
-    word nextPacketID_;  
+    word nextPacketID;  
     int  pingIntervalRemaining;
     byte pingCount;
     MQTTDefaultMessageHandlerFunc defaultHandler_;
     MQTTSubscriptionList subscriptions_;
+    MQTTSubscriptionsWaitingAck* subsWaitingAck_;
     //
     void reset();
     byte pingInterval();
@@ -479,6 +487,7 @@ class MQTTClient: public MQTTBase {
     bool sendPUBREC(const word packetid);
     bool sendPUBCOMP(const word packetid);
     bool sendSUBSCRIBE(const MQTTSubscriptionList& subscriptions);
+
     //  
     friend class MQTTPUBLISHQueue;
     friend class MQTTPUBRECQueue;

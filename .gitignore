@@ -3,3 +3,4 @@ c_cpp_properties.json
 .development
 build
 extras/docs
+.vscode
