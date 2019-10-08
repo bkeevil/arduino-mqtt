@@ -41,7 +41,7 @@ void testTopic() {
   Serial.print("Three Token Topic: ");
   runTest(topic.setText("Test1/TestA/TestB"));
   Serial.print("Check asString matches: ");
-  runTest(topic.getString(s).equals("Test1/TestA/TestB"));
+  runTest(topic.getText(s).equals("Test1/TestA/TestB"));
   Serial.print("Three Token Topic Count: ");
   runTest(topic.count == 3);
   Serial.print("Wildcard in topic: ");
@@ -97,7 +97,7 @@ void testFilter() {
   Serial.print("Three Token Filter: ");
   runTest(filter.setText("Test1/TestA/TestB"));
   Serial.print("Check asString matches: ");
-  runTest(filter.getString(s).equals("Test1/TestA/TestB"));
+  runTest(filter.getText(s).equals("Test1/TestA/TestB"));
   Serial.print("Three Token Filter Count: ");
   runTest(filter.count == 3);
   Serial.print("Wildcard in filter: ");

@@ -4,57 +4,41 @@
 
 /** @brief Copy constructor */
 MQTTPacket::MQTTPacket(const MQTTPacket& rhs) {
+  client_ = rhs.client_;
+  packetID_ = rhs.packetID_;
   packetType_ = rhs.packetType_; 
-  remainingLength_ = rhs.remainingLength_;  
+  retries_ = rhs.retries_;
+  timeout_ = rhs.timeout_;
 }
 
 /** @brief Move constructor */
 MQTTPacket::MQTTPacket(MQTTPacket&& rhs) noexcept {
+  client_ = rhs.client_;
+  packetID_ = rhs.packetID_;
   packetType_ = rhs.packetType_; 
-  remainingLength_ = rhs.remainingLength_;
+  retries_ = rhs.retries_;
+  timeout_ = rhs.timeout_;
 }
 
 /** @brief Copy assignment operator */
 MQTTPacket& MQTTPacket::operator=(const MQTTPacket& rhs) {
   if (this == &rhs) return *this;
+  client_ = rhs.client_;
+  packetID_ = rhs.packetID_;
   packetType_ = rhs.packetType_; 
-  remainingLength_ = rhs.remainingLength_;
+  retries_ = rhs.retries_;
+  timeout_ = rhs.timeout_;
   return *this; 
 } 
 
 /** @brief Move assignment operator */
 MQTTPacket& MQTTPacket::operator=(MQTTPacket&& rhs) noexcept {
   if (this == &rhs) return *this;
+  client_ = rhs.client_;
+  packetID_ = rhs.packetID_;
   packetType_ = rhs.packetType_; 
-  remainingLength_ = rhs.remainingLength_;
-  return *this;   
-}
-
-/* MQTTPacket */
-
-/** @brief Copy constructor */
-MQTTPacketID::MQTTPacketID(const MQTTPacketID& rhs) : MQTTPacket(rhs) {
-  id = rhs.id;
-}
-
-/** @brief Move constructor */
-MQTTPacketID::MQTTPacketID(MQTTPacketID&& rhs) noexcept : MQTTPacket(std::move(rhs)) {
-  id = rhs.id;
-}
-
-/** @brief Copy assignment operator */
-MQTTPacketID& MQTTPacketID::operator=(const MQTTPacketID& rhs) {
-  if (this == &rhs) return *this;
-  MQTTPacket::operator=(rhs.id);
-  id = rhs.id;
-  return *this; 
-} 
-
-/** @brief Move assignment operator */
-MQTTPacketID& MQTTPacketID::operator=(MQTTPacketID&& rhs) noexcept {
-  if (this == &rhs) return *this;
-  MQTTPacket::operator=(std::move(rhs.id));
-  id = rhs.id;
+  retries_ = rhs.retries_;
+  timeout_ = rhs.timeout_;
   return *this;   
 }
 
@@ -73,61 +57,61 @@ void MQTTPacket::stack_clear(MQTTPacket* top) {
 }
 
 /** @brief Adds node to the top of the stack */
-void MQTTPacket::stack_push(MQTTPacket* top, MQTTPacket* node) {
+void MQTTPending::push(MQTTPacket* node) {
   if (node != nullptr) {
-    if (top == nullptr) {
-      top = node;
+    if (top_ == nullptr) {
+      top_ = node;
     } else {
-      node->next = top;
-      top = node;
+      node->next_ = top_;
+      top_ = node;
     }
   }
 }
 
 /** @brief Removes and returns the first item from the stack */
-MQTTPacket* MQTTPacket::stack_pop(MQTTPacket* top) {
-  if (top == nullptr) {
+MQTTPacket* MQTTPending::pop() {
+  if (top_ == nullptr) {
     return nullptr;
   } else {
-    MQTTPacket* node = top;
-    top = top->next;
+    MQTTPacket* node = top_;
+    top_ = top_->next_;
     return node;
   }
 }
 
 /** @brief Decrements the timeout value retransmits packets as necessary */
-void MQTTPacket::stack_interval(MQTTPacket* top) {
+void MQTTPending::interval() {
   MQTTPacket* prev = nullptr;
-  MQTTPacket* ptr = top;
+  MQTTPacket* ptr = top_;
 
   while (ptr != nullptr) {
-    if (--ptr->timeout == 0) {
-      if (++ptr->retries >= MQTT_PACKET_RETRIES) {
+    if (--ptr->timeout_ == 0) {
+      if (++ptr->retries_ >= MQTT_PACKET_RETRIES) {
         if (prev == nullptr) {
-          top = ptr->next;
+          top_ = ptr->next_;
         } else {
-          prev->next = ptr->next;
+          prev->next_ = ptr->next_;
         }
         delete ptr;
         Serial.println("Packet deleted: Too many packet resends");
       } else {
-        ptr->timeout = MQTT_PACKET_TIMEOUT;
-        ptr->retransmit();
+        ptr->timeout_ = MQTT_PACKET_TIMEOUT;
+        ptr->send(true);
         Serial.println("Packet timeout: Resending packet");
       }
     }
     prev = ptr;
-    ptr = ptr->next;
+    ptr = ptr->next_;
   }
 }
 
 /** @brief Returns a count of the number of items in the stack */
-const int MQTTPacket::stack_count(const MQTTPacket* top) {
+const int MQTTPending::count() const {
   int count = 0;
-  MQTTPacket* ptr = top;
+  MQTTPacket* ptr = top_;
   while (ptr != nullptr) {
     ++count;
-    ptr = ptr->next;
+    ptr = ptr->next_;
   }
   return count;
 }
@@ -463,44 +447,42 @@ bool MQTTFilter::equals(const MQTTFilter& filter) const {
 /* MQTTSubscriptionList */
 
 void MQTTSubscriptionList::clear() {
-  MQTTSubscription* ptr = first;
+  MQTTSubscription* ptr = first_;
   while (ptr != nullptr) {
-    first = ptr->next;
+    first_ = ptr->next;
     delete ptr;
-    ptr = first;
+    ptr = first_;
   }
 }
 
-void MQTTSubscriptionList::push(MQTTSubscriptionList& subs) {
+void MQTTSubscriptionList::import(const MQTTSubscriptionList& subs) noexcept {
   MQTTSubscription* ptr;
   MQTTSubscription* rhs_ptr;
   MQTTSubscription* lhs_ptr;
 
-  rhs_ptr = subs.first;
-  subs.first = nullptr;
+  rhs_ptr = subs.top_;
   while (rhs_ptr != nullptr) {
     lhs_ptr = find(rhs_ptr->filter);
     if (lhs_ptr == nullptr) {
-      lhs_ptr = new MQTTSubscription(std::move(*rhs_ptr));
+      lhs_ptr = new MQTTSubscription(*rhs_ptr);
       push(lhs_ptr);
     } else {
-      lhs_ptr->filter = std::move(rhs_ptr->filter);
+      lhs_ptr->filter.setText(rhs_ptr->filter.getText());
       lhs_ptr->handler_ = rhs_ptr->handler_;
       lhs_ptr->qos = rhs_ptr->qos;
       lhs_ptr->sent = rhs_ptr->sent;
     }
     ptr = rhs_ptr;
-    rhs_ptr = rhs_ptr->next;
+    rhs_ptr = rhs_ptr->next_;
     delete ptr;
   }
-
 }
 
 MQTTSubscription* MQTTSubscriptionList::find(MQTTFilter& filter) {
-  MQTTSubscription* ptr = first;
+  MQTTSubscription* ptr = top_;
   while (ptr != nullptr) {
     if (ptr->filter.equals(filter)) return ptr;
-    ptr = ptr->next;
+    ptr = ptr->next_;
   }
   return nullptr;
 }
@@ -510,7 +492,7 @@ MQTTSubscription* MQTTSubscriptionList::find(MQTTFilter& filter) {
 /** @brief    Copy constructor */
 MQTTMessage::MQTTMessage(const MQTTMessage& m): qos(m.qos), duplicate(m.duplicate), retain(m.retain), data_len(m.data_len), data_size(m.data_len), data_pos(m.data_len) {
   String s;
-  topic.setText(m.topic.text);  //TODO: MQTTTopic, MQTTFilter, and MQTTTokenizer copy and move constructors
+  topic.setText(m.topic.getText());  //TODO: MQTTTopic, MQTTFilter, and MQTTTokenizer copy and move constructors
   data = (byte*) malloc(data_len);
   memcpy(data,m.data,data_len);
 }
@@ -639,23 +621,7 @@ size_t MQTTMessage::write(const byte* buffer, const size_t size) {
   return size;
 }
 
-/* MQTTMessageQueue */
-
-void MQTTMessageQueue::clear() {
-  queuedMessage_t* ptr = first;
-  while (first != NULL) {
-    ptr = first;
-    first = first->next;
-    count--;
-    if (ptr->message != NULL)
-      delete ptr->message;
-    free(ptr);
-  }
-  first = NULL;
-  last = NULL;
-}
-
-void MQTTPUBLISHQueue::resend(queuedMessage_t* qm) { 
+/*void MQTTPUBLISHQueue::resend(queuedMessage_t* qm) { 
   #ifdef DEBUG
   Serial.println("Resending PUBLISH packet");
   #endif
@@ -675,7 +641,7 @@ void MQTTPUBRELQueue::resend(queuedMessage_t* qm) {
   Serial.println("Resending PUBREL packet");
   #endif
   client->sendPUBREL(qm->packetid); 
-}
+}*/
 
 /* MQTTBase */
 

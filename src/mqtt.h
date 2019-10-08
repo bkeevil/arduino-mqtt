@@ -91,6 +91,10 @@ enum tokenKind_t {
 };
 
 // Forward Declarations
+class MQTTPacket;
+class MQTTPending;
+class MQTTToken;
+class MQTTTokenizer;
 class MQTTTopic;
 class MQTTFilter;
 class MQTTSubscription;
@@ -103,29 +107,35 @@ using MQTTDefaultMessageHandlerFunc = void (*)(const MQTTMessage& msg);
 
 class MQTTPacket : public Printable {
   public:
-    MQTTPacket(packetType_t pt) : packetType_(pt) {}
+    MQTTPacket(MQTTClient* client, packetType_t packetType, word packetID) : client_(client), packetType_(packetType), packetID_(packetID) {}
     MQTTPacket(const MQTTPacket& rhs);
     MQTTPacket(MQTTPacket&& rhs);
     MQTTPacket& operator=(const MQTTPacket& rhs) noexcept;
     MQTTPacket& operator=(MQTTPacket&& rhs) noexcept;
-    //virtual size_t printTo(Print& p) const;
+    const word packetID() const { return packetID_; }
+    const packetType_t packetType() const { return packetType_; }
   protected:
-    virtual bool validate() = 0;
-    unsigned long remainingLength_;
+    virtual void send(bool retransmit = false) { client_->stream.print(*this); }
   private:
+    MQTTClient* client_;
+    byte retries_;
+    word timeout_;
     packetType_t packetType_;
+    word packetID_;
+    MQTTPacket* next_; 
+    friend class MQTTPending;
 };
 
-class MQTTPacketID : public MQTTPacket {
+/** @brief A stack of PUBLISH, PUBREL, PUBCOMP, SUBSCRIBE and UNSUBSCRIBE packets that are waiting for acknowledgement */
+class MQTTPending {
   public:
-    MQTTPacketID(packetType_t pt) : MQTTPacket(pt) { id = nextid++; }
-    MQTTPacketID(const MQTTPacketID& rhs);
-    MQTTPacketID(MQTTPacketID&& rhs);
-    MQTTPacketID& operator=(const MQTTPacketID& rhs) noexcept;
-    MQTTPacketID& operator=(MQTTPacketID&& rhs) noexcept;    
+    void clear();
+    void push(MQTTPacket* node);
+    MQTTPacket* pop();
+    void interval();
+    const int count() const;
   private:
-    word id;
-    static word nextid;
+    MQTTPacket* top_;  
 };
 
 class MQTTToken {
@@ -193,12 +203,12 @@ class MQTTSubscription {
     MQTTSubscription(const MQTTSubscription& rhs) : qos(rhs.qos), filter(rhs.filter), next(nullptr), sent(rhs.sent), handler_(rhs.handler_) {}
     qos_t qos;
     MQTTFilter filter;
-    MQTTSubscription* next;
     bool sent;
   protected:
     virtual bool handle(MQTTMessage& msg) { return handler_(*this,msg); }
   private:
     MQTTMessageHandlerFunc handler_ = nullptr;
+    MQTTSubscription* next_;
     friend class MQTTSubscriptionList;
 };
 
@@ -207,25 +217,20 @@ class MQTTSubscriptionList {
   public:
     ~MQTTSubscriptionList() { clear(); }
     void clear();
-    //MQTTSubscription* pop() { MQTTSubscription* ptr = first; if (first != nullptr) first = first->next; if (first == nullptr) last = nullptr; return ptr; }
-    void push(MQTTSubscription* node) { last->next = node; node->next = nullptr; last = last->next; }
-    void push(MQTTSubscriptionList& subs);
+    void push(MQTTSubscription* node) { if (node != nullptr) { node->next_ = top_; top_ = node; } }
+    void import(const MQTTSubscriptionList& subs);
     MQTTSubscription* find(MQTTFilter& filter);
-    MQTTSubscription* first;
   private:
-    MQTTSubscription* last;
+    MQTTSubscription* top_;
 };
 
-struct MQTTSubscriptionListWaitingAck {
-  word packetid;
-  MQTTSubscriptionList* list;
-  word retries;
-  word timeout;
-  MQTTSubscriptionListWaitingAck* next;
-};
+class MQTTSubscribePacket : public MQTTPacket {
+  public:
+    MQTTSubscriptionList subscriptions();
+  private:
+    
+}
 
-class 
-/** @brief  A linked list of MQTTSubscriptionList 
 /** @class    MQTTMessage mqtt.h
  *  @brief    Represents an MQTT message that is sent or received 
  *  @details  Use the methods of the Print and Printable ancestor classes to access the message 
@@ -314,44 +319,6 @@ class MQTTMessage: public Printable, public Print {
     size_t data_pos;       /**< Index of the next byte to be written */
 };
 
-/** @struct  queuedMessage_t mqtt.h
- *  @details Structure for message queue linked list 
- */
-struct queuedMessage_t {
-  /** @brief A unique packetID is assigned when a packet is placed in the queue */
-  word packetid;          
-  /** @brief Time the packet has been in the queue (in seconds) */
-  byte timeout;
-  /** @brief Number of times the packet has been retreansmitted */
-  byte retries;
-  /** @brief The MQTTMessage object that was sent */
-  MQTTMessage* message;
-  /** @brief Pointer to the next structure in the linked list */
-  queuedMessage_t* next;  
-};
-
-/** @class   MQTTMessaageQueue mqtt.h
- *  @brief   Base abstract class for managing a linked list of messages
- *  @details Descendant classes that retransmit packets must implement the resend() methods
- */
-class MQTTMessageQueue {
-  public:
-    MQTTMessageQueue(MQTTClient* client) : client(client) {}
-    ~MQTTMessageQueue() { clear(); }
-    int getCount() const { return count; }
-    void clear();
-    bool interval();
-    void push(queuedMessage_t* qm);
-    queuedMessage_t* pop();
-  protected:
-    MQTTClient* client;
-    virtual void resend(queuedMessage_t* qm) = 0;
-  private:
-    queuedMessage_t* first = NULL;
-    queuedMessage_t* last  = NULL;
-    int count = 0;
-};
-
 /** @class   MQTTPUBLISHQueue mqtt.h
  *  @brief   Message queue for QOS1 & QOS2 Messages that have been sent but have not been acknowledged
  *  @details When a new PUBLISH packet is sent with QOS1 or 2 it is placed in the PUBLISH Queue. 
@@ -400,7 +367,7 @@ class MQTTBase {
   public:
     /** @brief The user of the component will supply a reference to an object of the Stream class */
     MQTTBase(Stream& stream): stream(stream) {} 
-    protected:
+  protected:
       /** @brief The network stream to read/write from */
     Stream& stream; 
 
@@ -431,6 +398,8 @@ class MQTTBase {
 
     /** @brief    Reads a UTF8 string from the stream in the format required by the MQTT protocol */
     bool readStr(String& str);    
+
+    friend class MQTTPacket;
 };
 
 /** @brief    The main class for an MQTT client connection
@@ -487,15 +456,12 @@ class MQTTClient: public MQTTBase {
     byte dataAvailable(); /**< Needs to be called whenever there is data available on the connection */
     byte intervalTimer(); /**< Needs to be called once every second */
   private:
-    MQTTPUBLISHQueue  PUBLISHQueue;         /**< Outgoing QOS1 or QOS2 Publish Messages that have not been acknowledged */
-    MQTTPUBRECQueue   PUBRECQueue;          /**< Incoming QOS2 messages that have not been acknowledged */
-    MQTTPUBRELQueue   PUBRELQueue;          /**< Outgoing QOS2 messages that have not been released */
+    MQTTPending pending;
     word nextPacketID;  
     int  pingIntervalRemaining;
     byte pingCount;
     MQTTDefaultMessageHandlerFunc defaultHandler_;
     MQTTSubscriptionList subscriptions_;
-    MQTTSubscriptionsWaitingAck* subsWaitingAck_;
     //
     void reset();
     byte pingInterval();
@@ -521,9 +487,7 @@ class MQTTClient: public MQTTBase {
     bool sendSUBSCRIBE(const MQTTSubscriptionList& subscriptions);
 
     //  
-    friend class MQTTPUBLISHQueue;
-    friend class MQTTPUBRECQueue;
-    friend class MQTTPUBRELQueue;
+    friend class MQTTPacket;
 };
 
 #endif
