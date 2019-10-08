@@ -4,22 +4,58 @@
 
 /** @brief Copy constructor */
 MQTTPacket::MQTTPacket(const MQTTPacket& rhs) {
-  
+  packetType_ = rhs.packetType_; 
+  remainingLength_ = rhs.remainingLength_;  
 }
 
 /** @brief Move constructor */
 MQTTPacket::MQTTPacket(MQTTPacket&& rhs) noexcept {
-
+  packetType_ = rhs.packetType_; 
+  remainingLength_ = rhs.remainingLength_;
 }
 
 /** @brief Copy assignment operator */
 MQTTPacket& MQTTPacket::operator=(const MQTTPacket& rhs) {
   if (this == &rhs) return *this;
+  packetType_ = rhs.packetType_; 
+  remainingLength_ = rhs.remainingLength_;
+  return *this; 
 } 
 
 /** @brief Move assignment operator */
 MQTTPacket& MQTTPacket::operator=(MQTTPacket&& rhs) noexcept {
   if (this == &rhs) return *this;
+  packetType_ = rhs.packetType_; 
+  remainingLength_ = rhs.remainingLength_;
+  return *this;   
+}
+
+/* MQTTPacket */
+
+/** @brief Copy constructor */
+MQTTPacketID::MQTTPacketID(const MQTTPacketID& rhs) : MQTTPacket(rhs) {
+  id = rhs.id;
+}
+
+/** @brief Move constructor */
+MQTTPacketID::MQTTPacketID(MQTTPacketID&& rhs) noexcept : MQTTPacket(std::move(rhs)) {
+  id = rhs.id;
+}
+
+/** @brief Copy assignment operator */
+MQTTPacketID& MQTTPacketID::operator=(const MQTTPacketID& rhs) {
+  if (this == &rhs) return *this;
+  MQTTPacket::operator=(rhs.id);
+  id = rhs.id;
+  return *this; 
+} 
+
+/** @brief Move assignment operator */
+MQTTPacketID& MQTTPacketID::operator=(MQTTPacketID&& rhs) noexcept {
+  if (this == &rhs) return *this;
+  MQTTPacket::operator=(std::move(rhs.id));
+  id = rhs.id;
+  return *this;   
 }
 
 /** @brief Clears and destroys the stack */

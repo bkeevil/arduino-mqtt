@@ -67,7 +67,12 @@
 
 /** @endcond */
 
-enum mqttEvent_t {evCONNECTED = 0, evINIT_SESSION, evDISCONNECTED, evMAX}
+/** @brief Used to identify the type of a received packet */
+enum packetType_t {ptBROKERCONNECT = 0, ptCONNECT = 1, ptCONNACK = 2, ptPUBLISH = 3, ptPUBACK = 4,
+  ptPUBREC = 5, ptPUBREL = 6, ptPUBCOMP = 7, ptSUBSCRIBE = 8, ptSUBACK = 9, ptUNSUBSCRIBE = 10,
+  ptUNSUBACK = 11, ptPINGREQ = 12, ptPINGRESP = 13, ptDISCONNECT = 14};
+
+enum mqttEvent_t {evCONNECTED = 0, evINIT_SESSION, evDISCONNECTED, evMAX};
 
 /** Quality of Service Levels */
 enum qos_t {
@@ -95,6 +100,33 @@ class MQTTClient;
 using MQTTEventHandlerFunc = void (*)();
 using MQTTMessageHandlerFunc = bool (*)(const MQTTSubscription& sub, const MQTTMessage& msg);
 using MQTTDefaultMessageHandlerFunc = void (*)(const MQTTMessage& msg);
+
+class MQTTPacket : public Printable {
+  public:
+    MQTTPacket(packetType_t pt) : packetType_(pt) {}
+    MQTTPacket(const MQTTPacket& rhs);
+    MQTTPacket(MQTTPacket&& rhs);
+    MQTTPacket& operator=(const MQTTPacket& rhs) noexcept;
+    MQTTPacket& operator=(MQTTPacket&& rhs) noexcept;
+    //virtual size_t printTo(Print& p) const;
+  protected:
+    virtual bool validate() = 0;
+    unsigned long remainingLength_;
+  private:
+    packetType_t packetType_;
+};
+
+class MQTTPacketID : public MQTTPacket {
+  public:
+    MQTTPacketID(packetType_t pt) : MQTTPacket(pt) { id = nextid++; }
+    MQTTPacketID(const MQTTPacketID& rhs);
+    MQTTPacketID(MQTTPacketID&& rhs);
+    MQTTPacketID& operator=(const MQTTPacketID& rhs) noexcept;
+    MQTTPacketID& operator=(MQTTPacketID&& rhs) noexcept;    
+  private:
+    word id;
+    static word nextid;
+};
 
 class MQTTToken {
   public:

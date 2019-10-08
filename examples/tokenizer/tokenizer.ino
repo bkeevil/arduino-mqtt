@@ -19,43 +19,43 @@ void testTopic() {
   String s;
 
   Serial.print("Blank Topic: ");
-  runTest(!topic.setString(""));
+  runTest(!topic.setText(""));
   Serial.print("Blank Topic Count: ");
   runTest(topic.count==0);
   Serial.print("Single Slash Topic: ");
-  runTest(!topic.setString("/"));
+  runTest(!topic.setText("/"));
   Serial.print("Single Slash Count: ");
   runTest(topic.count==0);
   Serial.print("Single Multi Topic: ");
-  runTest(!topic.setString("#"));
+  runTest(!topic.setText("#"));
   Serial.print("Single Wildcard Topic: ");
-  runTest(!topic.setString("+"));
+  runTest(!topic.setText("+"));
   Serial.print("Multi Slash Topic: ");
-  runTest(!topic.setString("#/"));
+  runTest(!topic.setText("#/"));
   Serial.print("Slash Multi Topic: ");
-  runTest(!topic.setString("/#"));
+  runTest(!topic.setText("/#"));
   Serial.print("Wildcard Slash Topic: ");
-  runTest(!topic.setString("+/"));
+  runTest(!topic.setText("+/"));
   Serial.print("Slash Wildcard Topic: ");
-  runTest(!topic.setString("/+"));  
+  runTest(!topic.setText("/+"));  
   Serial.print("Three Token Topic: ");
-  runTest(topic.setString("Test1/TestA/TestB"));
+  runTest(topic.setText("Test1/TestA/TestB"));
   Serial.print("Check asString matches: ");
   runTest(topic.getString(s).equals("Test1/TestA/TestB"));
   Serial.print("Three Token Topic Count: ");
   runTest(topic.count == 3);
   Serial.print("Wildcard in topic: ");
-  runTest(!topic.setString("Test1/+/TestB"));
+  runTest(!topic.setText("Test1/+/TestB"));
   Serial.print("Wildcard as part of topic token: ");
-  runTest(!topic.setString("Test1/TestA+/TestB"));
+  runTest(!topic.setText("Test1/TestA+/TestB"));
   Serial.print("Multi as part of topic token: ");
-  runTest(!topic.setString("Test1/TestA#/TestB"));  
+  runTest(!topic.setText("Test1/TestA#/TestB"));  
   Serial.print("Multi in wrong place in topic: ");
-  runTest(!topic.setString("Test1/#/TestB"));
+  runTest(!topic.setText("Test1/#/TestB"));
   Serial.print("Multi in right place in topic: ");
-  runTest(!topic.setString("Test1/TestA/#"));
+  runTest(!topic.setText("Test1/TestA/#"));
   Serial.print("Wildcard at end in topic: ");
-  runTest(!topic.setString("Test1/TestA/+"));
+  runTest(!topic.setText("Test1/TestA/+"));
 }
 
 void testFilter() {
@@ -63,61 +63,61 @@ void testFilter() {
   String s;
   
   Serial.print("Blank Filter: ");
-  runTest(!filter.setString(""));
+  runTest(!filter.setText(""));
   Serial.print("Blank Filter Count: ");
   runTest(filter.count==0);
   Serial.print("Single Slash Filter: ");
-  runTest(!filter.setString("/"));
+  runTest(!filter.setText("/"));
   Serial.print("Single Slash Filter Count: ");
   runTest(filter.count==0);
   Serial.print("Single Multi Filter: ");
-  runTest(filter.setString("#"));
+  runTest(filter.setText("#"));
   Serial.print("Single Multi Filter Count: ");
   runTest(filter.count==1);
   Serial.print("Single Wildcard Filter: ");
-  runTest(filter.setString("+"));
+  runTest(filter.setText("+"));
   Serial.print("Single Wildcard Filter Count: ");
   runTest(filter.count==1);
   Serial.print("Multi Slash Filter: ");
-  runTest(filter.setString("#/"));
+  runTest(filter.setText("#/"));
   Serial.print("Multi Slash Filter Count: ");
   runTest(filter.count==1);
   Serial.print("Slash Multi Filter: ");
-  runTest(filter.setString("/#"));
+  runTest(filter.setText("/#"));
   Serial.print("Slash Multi Filter Count: ");
   runTest(filter.count==2);
   Serial.print("Wildcard Slash Filter: ");
-  runTest(filter.setString("+/"));
+  runTest(filter.setText("+/"));
   Serial.print("Wildcard Slash Filter: ");
   runTest(filter.count==1);
   Serial.print("Slash Wildcard Filter: ");
-  runTest(filter.setString("/+"));
+  runTest(filter.setText("/+"));
   Serial.print("Slash Wildcard Filter Count: ");
   runTest(filter.count==2);
   Serial.print("Three Token Filter: ");
-  runTest(filter.setString("Test1/TestA/TestB"));
+  runTest(filter.setText("Test1/TestA/TestB"));
   Serial.print("Check asString matches: ");
   runTest(filter.getString(s).equals("Test1/TestA/TestB"));
   Serial.print("Three Token Filter Count: ");
   runTest(filter.count == 3);
   Serial.print("Wildcard in filter: ");
-  runTest(filter.setString("Test1/+/TestB"));
+  runTest(filter.setText("Test1/+/TestB"));
   Serial.print("Wildcard in Filter Count: ");
   runTest(filter.count == 3);
   Serial.print("Wildcard as part of filter token: ");
-  runTest(!filter.setString("Test1/TestA+/TestB"));
+  runTest(!filter.setText("Test1/TestA+/TestB"));
   Serial.print("Multi as part of filter token: ");
-  runTest(!filter.setString("Test1/TestA#/TestB"));
+  runTest(!filter.setText("Test1/TestA#/TestB"));
   Serial.print("Multi in wrong place in filter: ");
-  runTest(!filter.setString("Test1/#/TestB"));
+  runTest(!filter.setText("Test1/#/TestB"));
   Serial.print("Multi in right place in filter: ");
-  runTest(filter.setString("Test1/TestA/#"));
+  runTest(filter.setText("Test1/TestA/#"));
   Serial.print("Multi in right place token count: ");
   runTest(filter.count == 3);
   Serial.print("Wildcard at end in filter: ");
-  runTest(filter.setString("Test1/TestA/+"));
+  runTest(filter.setText("Test1/TestA/+"));
   Serial.print("Wildcard Multi at end in topic: ");
-  runTest(filter.setString("Test1/TestA/+/#"));
+  runTest(filter.setText("Test1/TestA/+/#"));
 }
 
 void testGroup3() {
@@ -125,15 +125,15 @@ void testGroup3() {
   MQTTFilter filter("A/#");
   MQTTTopic topic;
 
-  topic.setString("A");
+  topic.setText("A");
   runTest(filter.match(topic));
-  topic.setString("A/");
+  topic.setText("A/");
   runTest(filter.match(topic));
-  topic.setString("A/B");
+  topic.setText("A/B");
   runTest(filter.match(topic));
-  topic.setString("B");
+  topic.setText("B");
   runTest(!filter.match(topic));
-  topic.setString("A/Test1/Test2");
+  topic.setText("A/Test1/Test2");
   runTest(filter.match(topic));
 }
 
@@ -142,15 +142,15 @@ void testGroup4() {
   MQTTFilter filter("A/+");
   MQTTTopic topic;
 
-  topic.setString("A");
+  topic.setText("A");
   runTest(!filter.match(topic));
-  topic.setString("A/");
+  topic.setText("A/");
   runTest(!filter.match(topic));
-  topic.setString("A/B");
+  topic.setText("A/B");
   runTest(filter.match(topic));
-  topic.setString("B");
+  topic.setText("B");
   runTest(!filter.match(topic));
-  topic.setString("A/Test1/Test2");
+  topic.setText("A/Test1/Test2");
   runTest(!filter.match(topic));
 
 }
@@ -160,15 +160,15 @@ void testGroup5() {
   MQTTFilter filter("A/+/#");
   MQTTTopic topic;
 
-  topic.setString("A");
+  topic.setText("A");
   runTest(!filter.match(topic));
-  topic.setString("A/");
+  topic.setText("A/");
   runTest(!filter.match(topic));
-  topic.setString("A/B");
+  topic.setText("A/B");
   runTest(filter.match(topic));
-  topic.setString("B");
+  topic.setText("B");
   runTest(!filter.match(topic));
-  topic.setString("A/Test1/Test2");
+  topic.setText("A/Test1/Test2");
   runTest(filter.match(topic));
 }
 
