@@ -218,10 +218,10 @@ struct subscription_t {
   subscription_t* next;
 };
 
-/** @struct  queuedMessage_t mqtt.h
+/** @struct  QueuedMessage mqtt.h
  *  @details Structure for message queue linked list 
  */
-struct queuedMessage_t {
+struct QueuedMessage {
   /** @brief A unique packetID is assigned when a packet is placed in the queue */
   word packetid;          
   /** @brief Time the packet has been in the queue (in seconds) */
@@ -231,7 +231,7 @@ struct queuedMessage_t {
   /** @brief The MQTTMessage object that was sent */
   MQTTMessage* message;
   /** @brief Pointer to the next structure in the linked list */
-  queuedMessage_t* next;  
+  QueuedMessage* next;  
 };
 
 /** @class   MQTTMessaageQueue mqtt.h
@@ -245,16 +245,16 @@ class MQTTMessageQueue {
     int getCount() const { return count; }
     void clear();
     bool interval();
-    void push(queuedMessage_t* qm);
-    queuedMessage_t* pop();
+    void push(QueuedMessage* qm);
+    QueuedMessage* pop();
     static const byte packetTimeout {3};          /**< Number of seconds before a packet is resent */
     static const byte packetRetries {2};          /**< Number of retry attempts to send a packet before the connection is considered dead */
   protected:
     MQTTClient* client;
-    virtual void resend(queuedMessage_t* qm) = 0;
+    virtual void resend(QueuedMessage* qm) = 0;
   private:
-    queuedMessage_t* first = NULL;
-    queuedMessage_t* last  = NULL;
+    QueuedMessage* first = NULL;
+    QueuedMessage* last  = NULL;
     int count = 0;
 };
 
@@ -267,7 +267,7 @@ class MQTTMessageQueue {
 class MQTTPUBLISHQueue: public MQTTMessageQueue {
   protected:
     /** @brief Resends the PUBLISH message with the duplicate flag set to true */
-    virtual void resend(queuedMessage_t* qm);
+    virtual void resend(QueuedMessage* qm);
   public:
     MQTTPUBLISHQueue(MQTTClient* client) : MQTTMessageQueue(client) {}
 };
@@ -281,7 +281,7 @@ class MQTTPUBLISHQueue: public MQTTMessageQueue {
 class MQTTPUBRECQueue: public MQTTMessageQueue {
   protected:
     /** @brief Resends the PUBREC message */
-    virtual void resend(queuedMessage_t* qm);
+    virtual void resend(QueuedMessage* qm);
   public:
     MQTTPUBRECQueue(MQTTClient* client) : MQTTMessageQueue(client) {}    
 };
@@ -294,7 +294,7 @@ class MQTTPUBRECQueue: public MQTTMessageQueue {
 class MQTTPUBRELQueue: public MQTTMessageQueue {
   protected:
     /** @brief Resends the PUBREL message */
-    virtual void resend(queuedMessage_t* qm);
+    virtual void resend(QueuedMessage* qm);
   public:
     MQTTPUBRELQueue(MQTTClient* client) : MQTTMessageQueue(client) {}    
 };

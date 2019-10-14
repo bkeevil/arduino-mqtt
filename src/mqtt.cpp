@@ -432,7 +432,7 @@ size_t MQTTMessage::write(const byte* buffer, const size_t size) {
 /* MQTTMessageQueue */
 
 void MQTTMessageQueue::clear() {
-  queuedMessage_t* ptr = first;
+  QueuedMessage* ptr = first;
   while (first != NULL) {
     ptr = first;
     first = first->next;
@@ -447,7 +447,7 @@ void MQTTMessageQueue::clear() {
 
 bool MQTTMessageQueue::interval() {
   bool result = true;
-  queuedMessage_t* qm;
+  QueuedMessage* qm;
 
   qm = pop();
   if (qm != NULL) {
@@ -469,7 +469,7 @@ bool MQTTMessageQueue::interval() {
   return result;
 }
 
-void MQTTMessageQueue::push(queuedMessage_t* qm) {
+void MQTTMessageQueue::push(QueuedMessage* qm) {
   
   if (last != NULL) {
     last->next = qm;
@@ -483,8 +483,8 @@ void MQTTMessageQueue::push(queuedMessage_t* qm) {
   count++;
 }
 
-queuedMessage_t* MQTTMessageQueue::pop() {
-  queuedMessage_t* ptr;
+QueuedMessage* MQTTMessageQueue::pop() {
+  QueuedMessage* ptr;
   if (first != NULL) {
     ptr = first;
     first = first->next;
@@ -498,7 +498,7 @@ queuedMessage_t* MQTTMessageQueue::pop() {
   }
 }
 
-void MQTTPUBLISHQueue::resend(queuedMessage_t* qm) { 
+void MQTTPUBLISHQueue::resend(QueuedMessage* qm) { 
   #ifdef DEBUG
   Serial.println("Resending PUBLISH packet");
   #endif
@@ -506,14 +506,14 @@ void MQTTPUBLISHQueue::resend(queuedMessage_t* qm) {
   client->sendPUBLISH(qm->message); 
 }
 
-void MQTTPUBRECQueue::resend(queuedMessage_t* qm) { 
+void MQTTPUBRECQueue::resend(QueuedMessage* qm) { 
   #ifdef DEBUG
   Serial.println("Resending PUBREC packet");
   #endif
   client->sendPUBREC(qm->packetid); 
 }
 
-void MQTTPUBRELQueue::resend(queuedMessage_t* qm) { 
+void MQTTPUBRELQueue::resend(QueuedMessage* qm) { 
   #ifdef DEBUG
   Serial.println("Resending PUBREL packet");
   #endif
@@ -993,7 +993,7 @@ bool MQTTClient::sendPUBLISH(MQTTMessage* msg) {
 
       if (result && (static_cast<byte>(msg->qos) > 0)) {
         Serial.println("Adding message to PUBLISHQueue");
-        queuedMessage_t* qm = new queuedMessage_t;
+        QueuedMessage* qm = new QueuedMessage;
         qm->packetid = packetid;
         qm->timeout = MQTTMessageQueue::packetTimeout;
         qm->retries = 0;
@@ -1014,7 +1014,7 @@ bool MQTTClient::sendPUBLISH(MQTTMessage* msg) {
 
 ErrorCode MQTTClient::recvPUBLISH(const byte flags, const long remainingLength) {
   MQTTMessage* msg;
-  queuedMessage_t* qm;
+  QueuedMessage* qm;
   word packetid=0;
   long rl;
   int i;
@@ -1059,7 +1059,7 @@ ErrorCode MQTTClient::recvPUBLISH(const byte flags, const long remainingLength) 
       }
       delete msg;
     } else {
-      qm = new queuedMessage_t;
+      qm = new QueuedMessage;
       qm->packetid = packetid;
       qm->retries = 0;
       qm->timeout = MQTTMessageQueue::packetTimeout;
@@ -1076,7 +1076,7 @@ ErrorCode MQTTClient::recvPUBLISH(const byte flags, const long remainingLength) 
 ErrorCode MQTTClient::recvPUBACK() {
   word packetid;
   int iterations;
-  queuedMessage_t *qm;
+  QueuedMessage *qm;
 
   #ifdef DEBUG
   Serial.println("Received PUBACK");
@@ -1125,7 +1125,7 @@ bool MQTTClient::sendPUBACK(const word packetid) {
 ErrorCode MQTTClient::recvPUBREC() {
   word packetid;
   int iterations;
-  queuedMessage_t *qm;
+  QueuedMessage *qm;
 
   #ifdef DEBUG
   Serial.println("Received PUBREC");
@@ -1174,7 +1174,7 @@ bool MQTTClient::sendPUBREC(const word packetid) {
 ErrorCode MQTTClient::recvPUBREL() {
   word packetid;
   int iterations;
-  queuedMessage_t *qm;
+  QueuedMessage *qm;
 
   #ifdef DEBUG
   Serial.println("Received PUBREL");
@@ -1206,7 +1206,7 @@ ErrorCode MQTTClient::recvPUBREL() {
 
 bool MQTTClient::sendPUBREL(const word packetid) {
   bool result;
-  queuedMessage_t* qm;
+  QueuedMessage* qm;
 
   #ifdef DEBUG
   Serial.println("Sending PUBREL");
@@ -1217,7 +1217,7 @@ bool MQTTClient::sendPUBREL(const word packetid) {
     result &= (stream.write(0x02) == 1);
     result &= writeWord(packetid);
     if (result) {
-      qm = new queuedMessage_t;
+      qm = new QueuedMessage;
       qm->packetid = packetid;
       qm->timeout  = MQTTMessageQueue::packetTimeout;
       qm->retries  = 0;
@@ -1233,7 +1233,7 @@ bool MQTTClient::sendPUBREL(const word packetid) {
 ErrorCode MQTTClient::recvPUBCOMP() {
   word packetid;
   int iterations;
-  queuedMessage_t *qm;
+  QueuedMessage *qm;
 
   #ifdef DEBUG
   Serial.println("Received PUBCOMP");
