@@ -632,7 +632,7 @@ bool MQTTClient::connect(const String& clientID, const String& username, const S
     flags |= 32;
   }
 
-  flags |= (willMessage.qos << 3);
+  flags |= (static_cast<byte>(willMessage.qos) << 3);
   if (willMessage.enabled) {
     flags |= 4;
     rl += willMessage.topic.length() + 2 + willMessage.data_len + 2;
@@ -738,7 +738,7 @@ void MQTTClient::connected() {
 
 void MQTTClient::disconnect() {
   if (disconnectMessage.enabled) {
-    disconnectMessage.qos = qtAT_MOST_ONCE;
+    disconnectMessage.qos = QoS::AT_MOST_ONCE;
     publish(disconnectMessage);
   }
   stream.write((byte)0xE0);
@@ -811,7 +811,7 @@ byte MQTTClient::intervalTimer() {
   }
 }
 
-bool MQTTClient::subscribe(const word packetid, const String& filter, const qos_t qos) {
+bool MQTTClient::subscribe(const word packetid, const String& filter, const QoS qos) {
   bool result;
 
   if (filter != NULL) {
@@ -819,7 +819,7 @@ bool MQTTClient::subscribe(const word packetid, const String& filter, const qos_
     result &= writeRemainingLength(2 + 2 + 1 + filter.length());
     result &= writeWord(packetid);
     result &= writeStr(filter);
-    result &= (stream.write(qos) == 1);
+    result &= (stream.write(static_cast<byte>(qos)) == 1);
     return result;
   } else {
     return false;
@@ -889,7 +889,7 @@ byte MQTTClient::recvUNSUBACK() {
   }
 }
 
-bool MQTTClient::publish(const String& topic, byte* data, const size_t data_len, const qos_t qos, const bool retain) {
+bool MQTTClient::publish(const String& topic, byte* data, const size_t data_len, const QoS qos, const bool retain) {
   MQTTMessage* msg = new MQTTMessage();
   msg->topic = topic;
   msg->qos = qos;
@@ -899,7 +899,7 @@ bool MQTTClient::publish(const String& topic, byte* data, const size_t data_len,
   return sendPUBLISH(msg);
 }
 
-bool MQTTClient::publish(const String& topic, const String& data, const qos_t qos, const bool retain) {
+bool MQTTClient::publish(const String& topic, const String& data, const QoS qos, const bool retain) {
   MQTTMessage* msg = new MQTTMessage();
   msg->topic = topic;
   msg->qos = qos;
@@ -919,9 +919,9 @@ bool MQTTClient::sendPUBLISH(MQTTMessage* msg) {
     #ifdef DEBUG
     Serial.println("sending PUBLISH");
     #endif
-    if ((msg->topic != NULL) && (msg->topic.length()>0) && (msg->qos<3) && (isConnected)) {
+    if ((msg->topic != NULL) && (msg->topic.length()>0) && (msg->qos < QoS::MAX) && (isConnected)) {
 
-      flags |= (msg->qos << 1);
+      flags |= (static_cast<byte>(msg->qos) << 1);
       if (msg->duplicate) {
         flags |= 8;
       }
@@ -930,7 +930,7 @@ bool MQTTClient::sendPUBLISH(MQTTMessage* msg) {
       }
 
       remainingLength = 2 + msg->topic.length() + msg->data_len;
-      if (msg->qos>0) {
+      if (static_cast<byte>(msg->qos) > 0) {
         remainingLength += 2;
       }
 
@@ -941,7 +941,7 @@ bool MQTTClient::sendPUBLISH(MQTTMessage* msg) {
 
       #ifdef DEBUG
       Serial.print("flags="); Serial.println(flags);
-      Serial.print("qos="); Serial.println(msg->qos);
+      Serial.print("qos="); Serial.println(static_cast<byte>(msg->qos));
       Serial.print("packetid="); Serial.println(packetid);
       Serial.print("topic="); Serial.println(msg->topic);
       Serial.print("rl="); Serial.println(remainingLength);
@@ -954,7 +954,7 @@ bool MQTTClient::sendPUBLISH(MQTTMessage* msg) {
         writeStr(msg->topic)
       );
 
-      if (result && (msg->qos > 0)) {
+      if (result && (static_cast<byte>(msg->qos) > 0)) {
         result = writeWord(packetid);
       }
 
@@ -962,7 +962,7 @@ bool MQTTClient::sendPUBLISH(MQTTMessage* msg) {
         result = (stream.write(msg->data,msg->data_len) == msg->data_len);
       }
 
-      if (result && (msg->qos > 0)) {
+      if (result && (static_cast<byte>(msg->qos) > 0)) {
         Serial.println("Adding message to PUBLISHQueue");
         queuedMessage_t* qm = new queuedMessage_t;
         qm->packetid = packetid;
@@ -998,7 +998,7 @@ byte MQTTClient::recvPUBLISH(const byte flags, const long remainingLength) {
 
   msg->duplicate = (flags & 8) > 0;
   msg->retain = (flags & 1) > 0;
-  msg->qos = (qos_t)((flags & 6) >> 1);
+  msg->qos = (QoS)((flags & 6) >> 1);
 
   if (!isConnected) return MQTT_ERROR_NOT_CONNECTED;
 
@@ -1006,7 +1006,7 @@ byte MQTTClient::recvPUBLISH(const byte flags, const long remainingLength) {
 
   rl = remainingLength - msg->topic.length() - 2;
   
-  if (msg->qos>0) {
+  if (static_cast<byte>(msg->qos) > 0) {
     if (readWord(&packetid)) {
       rl -= 2;
     } else {
@@ -1023,9 +1023,9 @@ byte MQTTClient::recvPUBLISH(const byte flags, const long remainingLength) {
   msg->data_len = i;
 
   if (stream.readBytes(msg->data,i) == i) {
-    if (msg->qos != qtEXACTLY_ONCE) {
+    if (msg->qos != QoS::EXACTLY_ONCE) {
       receiveMessage(*msg);
-      if (msg->qos==qtAT_LEAST_ONCE) {
+      if (msg->qos==QoS::AT_LEAST_ONCE) {
         sendPUBACK(packetid);
       }
       delete msg;

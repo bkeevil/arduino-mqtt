@@ -75,11 +75,11 @@ enum MQTTPacketType {ptBROKERCONNECT = 0, ptCONNECT = 1, ptCONNACK = 2, ptPUBLIS
   ptUNSUBACK = 11, ptPINGREQ = 12, ptPINGRESP = 13, ptDISCONNECT = 14};
 
 /** Quality of Service Levels */
-enum qos_t {
-  qtAT_MOST_ONCE = 0,           /**< The packet is sent once and may or may not be received by the server */
-  qtAT_LEAST_ONCE,              /**< The packet is acknowledge by the server but may be sent by the client more than once */
-  qtEXACTLY_ONCE,               /**< Delivery of the packet exactly once is guaranteed using multiple acknowledgements */
-  qtMAX_VALUE = qtEXACTLY_ONCE
+enum class QoS : byte {
+  AT_MOST_ONCE = 0,           /**< The packet is sent once and may or may not be received by the server */
+  AT_LEAST_ONCE,              /**< The packet is acknowledge by the server but may be sent by the client more than once */
+  EXACTLY_ONCE,               /**< Delivery of the packet exactly once is guaranteed using multiple acknowledgements */
+  MAX
 };
 
 /** @brief Classifies a token in a topic name or topic filter */
@@ -165,7 +165,7 @@ class MQTTMessage: public Printable, public Print {
     String topic;         
 
     /** @brief The message QoS level*/
-    qos_t qos = qtAT_LEAST_ONCE;          
+    QoS qos = QoS::AT_LEAST_ONCE;          
     
     /** @brief Set to true if this message is a duplicate copy of a previous message because it has been resent */
     bool duplicate;
@@ -238,7 +238,7 @@ class MQTTMessage: public Printable, public Print {
 /** @brief Structure for a linked list of subscriptions */
 struct subscription_t {
   char filter[]; 
-  qos_t qos_;
+  QoS qos_;
   subscription_t* next;
 };
 
@@ -388,19 +388,19 @@ class MQTTClient: public MQTTBase {
     
     /** @brief Disconnects the MQTT connection */
     void disconnect();
-    bool subscribe(const word packetid, const String& filter, const qos_t qos = qtAT_MOST_ONCE);
+    bool subscribe(const word packetid, const String& filter, const QoS qos = QoS::AT_MOST_ONCE);
     bool unsubscribe(const word packetid, const String& filter);
 
     /** @brief   Publish a message to the server.
      *  @remark  In this version of the function, data is provided as a pointer to a buffer.
      *  @warning The data sent does not include the trailing NULL character */
-    bool publish(const String& topic, byte* data = NULL, const size_t data_len = 0, const qos_t qos = qtAT_MOST_ONCE, const bool retain=false);
+    bool publish(const String& topic, byte* data = NULL, const size_t data_len = 0, const QoS qos = QoS::AT_MOST_ONCE, const bool retain=false);
     
     /** @brief   Publish a message to the server.
      *  @remark  In this version of the function, data is provided as a String object.
      *  @warning If the data sent might include NULL characters, use the alternate version of this function.
      *  @warning The data sent by this function does not include a trailing NULL character */
-    bool publish(const String& topic, const String& data, const qos_t qos = qtAT_MOST_ONCE, const bool retain=false);
+    bool publish(const String& topic, const String& data, const QoS qos = QoS::AT_MOST_ONCE, const bool retain=false);
 
     /** @brief   Publish an MQTTMessage object to the server.
      *  This method will create a copy of msg and manage its lifecycle. You are free to destroy the original message 
