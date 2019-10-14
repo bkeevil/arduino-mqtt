@@ -17,6 +17,8 @@
 
 #define DEBUG
 
+namespace mqtt {
+
 /** @brief Error codes */
 enum class ErrorCode : byte {
   NONE=0,
@@ -211,27 +213,23 @@ class MQTTMessage: public Printable, public Print {
     size_t data_pos;       /**< Index of the next byte to be written */
 };
 
-namespace mqtt {
+/** @brief Structure for a linked list of subscriptions */
+struct Subscription {
+  char* filter; 
+  QoS qos;
+  Subscription* next {nullptr};
+};
 
-  /** @brief Structure for a linked list of subscriptions */
-  struct Subscription {
-    char* filter; 
-    QoS qos;
-    Subscription* next {nullptr};
-  };
-
-  /** @brief A linked list of Subscription objects
-   *  @details Used for sending SUBSCRIBE packets
-   */
-  class SubscriptionList {
-    public:
-      ~SubscriptionList() { clear(); }
-      void add(const char* filter, QoS qos = QoS::AT_MOST_ONCE);
-      void clear();
-    private:
-      Subscription* top_;
-  };
-
+/** @brief A linked list of Subscription objects
+ *  @details Used for sending SUBSCRIBE packets
+ */
+class SubscriptionList {
+  public:
+    ~SubscriptionList() { clear(); }
+    void add(const char* filter, QoS qos = QoS::AT_MOST_ONCE);
+    void clear();
+  private:
+    Subscription* top_;
 };
 
 /** @struct  QueuedMessage mqtt.h
@@ -443,5 +441,7 @@ class MQTTClient: public MQTTBase {
     friend class MQTTPUBRECQueue;
     friend class MQTTPUBRELQueue;
 };
+
+}; // namespace mqtt
 
 #endif

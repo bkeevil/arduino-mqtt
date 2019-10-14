@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include "mqtt.h"
 
+using namespace mqtt;
+
 MQTTClient mqtt(Serial);
 
 char data[10];

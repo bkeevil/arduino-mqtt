@@ -3,6 +3,8 @@
 #include "SSD1306.h" // alias for `#include "SSD1306Wire.h"`
 #include "mqtt.h"
 
+using namespace mqtt;
+
 class MyMQTTClient: public MQTTClient {
   public:
     MyMQTTClient(Stream& stream) : MQTTClient(stream) {}

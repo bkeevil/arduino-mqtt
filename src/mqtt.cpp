@@ -1,5 +1,7 @@
 #include "mqtt.h"
 
+namespace mqtt {
+
 /** @brief Return code sent with a CONNACK packet */
 enum class CONNACKResult : byte {
   SUCCESS=0,
@@ -522,7 +524,7 @@ void MQTTPUBRELQueue::resend(QueuedMessage* qm) {
 
 /* SubscriptionList */
 
-void mqtt::SubscriptionList::clear() {
+void SubscriptionList::clear() {
   Subscription* ptr = top_;
   while (ptr != nullptr) {
     top_ = top_->next;
@@ -530,7 +532,7 @@ void mqtt::SubscriptionList::clear() {
   }
 }
 
-void mqtt::SubscriptionList::add(const char* filter, QoS qos) {
+void SubscriptionList::add(const char* filter, QoS qos) {
   Subscription* ptr = top_;
   while (ptr != nullptr) {
     if (ptr->next == nullptr) {
@@ -1341,3 +1343,5 @@ ErrorCode MQTTClient::dataAvailable() {
 
   return ErrorCode::NONE;
 }
+
+};

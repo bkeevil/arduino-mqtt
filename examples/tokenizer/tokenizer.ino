@@ -9,6 +9,7 @@
 #include "mqtt.h"
 #include "esp_heap_caps.h"
 
+using namespace mqtt;
 
 void runTest(bool b) {
   if (b) Serial.println("PASS"); else Serial.println("FAIL");
