@@ -1,5 +1,15 @@
 #include "mqtt.h"
 
+/** @brief Return code sent with a CONNACK packet */
+enum class CONNACKResult : byte {
+  SUCCESS=0,
+  UNACCEPTABLE_PROTOCOL,
+  CLIENTID_REJECTED,
+  SERVER_UNAVAILABLE,
+  BAD_USERNAME_PASSWORD,
+  NOT_AUTHORIZED
+};
+
 /* MQTTTokenizer */
 
 /** @brief  Parse a topic name or topic filter string into a linked list of tokens
@@ -686,7 +696,7 @@ bool MQTTClient::connect(const String& clientID, const String& username, const S
 byte MQTTClient::recvCONNACK() {
   byte b;
   bool sessionPresent = false;
-  byte returnCode = MQTT_CONNACK_SUCCESS;    // Default return code is success
+  CONNACKResult returnCode = CONNACKResult::SUCCESS;    // Default return code is success
 
   if (isConnected) return MQTT_ERROR_ALREADY_CONNECTED;
 
@@ -701,12 +711,12 @@ byte MQTTClient::recvCONNACK() {
 
   i = stream.read();
   if (i > -1) {
-    returnCode = i;
+    returnCode = static_cast<CONNACKResult>(i);
   } else {
     return MQTT_ERROR_INSUFFICIENT_DATA;
   }
 
-  if (returnCode == MQTT_CONNACK_SUCCESS) {
+  if (returnCode == CONNACKResult::SUCCESS) {
     pingIntervalRemaining = MQTT_DEFAULT_PING_INTERVAL;
     pingCount = 0;
     connected();
@@ -716,11 +726,11 @@ byte MQTTClient::recvCONNACK() {
     return MQTT_ERROR_NONE;
   } else {
     switch (returnCode) {
-      case MQTT_CONNACK_UNACCEPTABLE_PROTOCOL : return MQTT_ERROR_UNACCEPTABLE_PROTOCOL;
-      case MQTT_CONNACK_CLIENTID_REJECTED     : return MQTT_ERROR_CLIENTID_REJECTED;
-      case MQTT_CONNACK_SERVER_UNAVAILABLE    : return MQTT_ERROR_SERVER_UNAVAILABLE;
-      case MQTT_CONNACK_BAD_USERNAME_PASSWORD : return MQTT_ERROR_BAD_USERNAME_PASSWORD;
-      case MQTT_CONNACK_NOT_AUTHORIZED        : return MQTT_ERROR_NOT_AUTHORIZED;
+      case CONNACKResult::UNACCEPTABLE_PROTOCOL : return MQTT_ERROR_UNACCEPTABLE_PROTOCOL;
+      case CONNACKResult::CLIENTID_REJECTED     : return MQTT_ERROR_CLIENTID_REJECTED;
+      case CONNACKResult::SERVER_UNAVAILABLE    : return MQTT_ERROR_SERVER_UNAVAILABLE;
+      case CONNACKResult::BAD_USERNAME_PASSWORD : return MQTT_ERROR_BAD_USERNAME_PASSWORD;
+      case CONNACKResult::NOT_AUTHORIZED        : return MQTT_ERROR_NOT_AUTHORIZED;
     }
   }
   return MQTT_ERROR_UNKNOWN;

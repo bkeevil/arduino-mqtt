@@ -28,13 +28,6 @@
 
 /** @cond */
 
-#define MQTT_CONNACK_SUCCESS                      0
-#define MQTT_CONNACK_UNACCEPTABLE_PROTOCOL        1
-#define MQTT_CONNACK_CLIENTID_REJECTED            2
-#define MQTT_CONNACK_SERVER_UNAVAILABLE           3
-#define MQTT_CONNACK_BAD_USERNAME_PASSWORD        4
-#define MQTT_CONNACK_NOT_AUTHORIZED               5
-
 #define MQTT_ERROR_NONE                           0
 
 #define MQTT_ERROR_ALREADY_CONNECTED            101
@@ -74,7 +67,7 @@ enum MQTTPacketType {ptBROKERCONNECT = 0, ptCONNECT = 1, ptCONNACK = 2, ptPUBLIS
   ptPUBREC = 5, ptPUBREL = 6, ptPUBCOMP = 7, ptSUBSCRIBE = 8, ptSUBACK = 9, ptUNSUBSCRIBE = 10,
   ptUNSUBACK = 11, ptPINGREQ = 12, ptPINGRESP = 13, ptDISCONNECT = 14};
 
-/** Quality of Service Levels */
+/** @brief Quality of Service Levels */
 enum class QoS : byte {
   AT_MOST_ONCE = 0,           /**< The packet is sent once and may or may not be received by the server */
   AT_LEAST_ONCE,              /**< The packet is acknowledge by the server but may be sent by the client more than once */
