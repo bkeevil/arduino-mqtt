@@ -7,6 +7,9 @@
 
 namespace mqtt {
 
+  using MessageHandlerFunc = bool (*)(const Subscription& sub, const Message& msg);
+  using DefaultMessageHandlerFunc = void (*)(const Message& msg);
+
   /** @brief    Represents an MQTT message that is sent or received 
    *  @details  Use the methods of the Print and Printable ancestor classes to access the message 
    *            data buffer. If the size of the data buffer is known, call reserve() to reserve 

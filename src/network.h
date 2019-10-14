@@ -5,16 +5,14 @@
 
 namespace mqtt {
 
-  /** @brief   The abstract base class for the MQTT Client class
-   *  @details Provides several protected utility methods for reading/writing data to/from a Stream object 
-   *           as per the 3.1.1 protocol specs. */
+  /** @brief Provides utility methods for reading/writing MQTT protocol data to/from a Client object */
   class Network {
     public:
-      /** @brief The end user must supply a reference to an object of the Stream class that represents the network stream of the client connection */
-      Network(Stream& stream): stream(stream) {} 
+      /** @brief Creates a network wrapper around a client connection */
+      Network(Client& client): client(client) {} 
     protected:
         /** @brief The network stream to read/write from */
-      Stream& stream; 
+      Client& client; 
 
       /** @brief  Reads a word from the stream in big endian order 
        *  @param  A pointer to a variable that will receive the outgoing word

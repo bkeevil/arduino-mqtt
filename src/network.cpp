@@ -1,6 +1,5 @@
 #include "network.h"
 
-using namespace std;
 using namespace mqtt;
 
 bool Network::readRemainingLength(long* value) {
@@ -10,7 +9,7 @@ bool Network::readRemainingLength(long* value) {
 
   *value = 0;
   do {
-    i = stream.read();
+    i = client.read();
     if (i > -1) {
       encodedByte = i;
       *value += (encodedByte & 127) * multiplier;
@@ -36,7 +35,7 @@ bool Network::writeRemainingLength(const long value) {
     if (lvalue > 0) {
       encodedByte |= 128;
     }
-    if (stream.write(encodedByte) != 1) {
+    if (client.write(encodedByte) != 1) {
       return false;
     }
   } while (lvalue > 0);
@@ -46,11 +45,11 @@ bool Network::writeRemainingLength(const long value) {
 bool Network::readWord(word* value) {
   int i;
   byte b;
-  i = stream.read();
+  i = client.read();
   if (i > -1) {
     b = i;
     *value = b << 8;
-    i = stream.read();
+    i = client.read();
     if (i > -1) {
       b = i;
       *value |= b;
@@ -65,9 +64,9 @@ bool Network::readWord(word* value) {
 
 bool Network::writeWord(const word value) {
   byte b = value >> 8;
-  if (stream.write(b) == 1) {
+  if (client.write(b) == 1) {
     b = value & 0xFF;
-    if (stream.write(b) == 1) {
+    if (client.write(b) == 1) {
       return true;
     } else {
       return false;
@@ -80,10 +79,10 @@ bool Network::writeWord(const word value) {
 bool Network::readStr(String& str) {
   word len;
 
-  if (stream.available() < len) {
+  if (client.available() < len) {
     if (readWord(&len)) {
       str.reserve(len);
-      str = stream.readString();
+      str = client.readString();
       return (str.length() == len);
     } else {
       return false;
@@ -96,7 +95,7 @@ bool Network::writeStr(const String& str) {
 
   len = str.length();
   if (writeWord(len)) {
-    return  (stream.print(str) == str.length());
+    return  (client.print(str) == str.length());
   } else {
     return false;
   }

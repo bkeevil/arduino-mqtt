@@ -2,25 +2,28 @@
 #define MQTT_SUBSCRIPTIONS_H
 
 #include "Arduino.h"
+#include "types.h"
 #include "tokenizer.h"
 #include "message.h"
 
 namespace mqtt {
 
-  /** @brief Represents a client susbscriptions */
+  class SubscriptionList;
+
+  /** @brief Represents a client subscription */
   class Subscription {
     public:
-      Subscription(const String &filter) : filter(filter), qos(QoS::AT_MOST_ONCE), handler(nullptr), sent(false) {}
-      Subscription(const String &filter, const QoS qos, const MessageHandlerFunc f) : filter(filter), qos(qos), handler(f), sent(false) {}
-      Subscription(const Subscription& rhs) : qos(rhs.qos), filter(rhs.filter), next(nullptr), sent(rhs.sent), handler(rhs.handler) {}
-      QoS qos;
-      Filter filter;
-      bool sent;
+      Subscription(const String &filter, const QoS qos = QoS::AT_MOST_ONCE, const MessageHandlerFunc f = nullptr) : 
+        filter_(filter), qos_(qos), handler_(f) {}
+      ~Subscription() { if (next_ != nullptr) { delete next_; next_ = nullptr; }
     protected:
-      virtual bool handle(Message& msg) { return handler(*this,msg); }
+      virtual bool handle(Message& msg) { return handler_(*this,msg); }
     private:
-      MessageHandlerFunc handler = nullptr;
-      Subscription* next;
+      QoS qos_ {QoS::AT_MOST_ONCE};
+      Filter filter_;
+      bool sent_ {false};
+      MessageHandlerFunc handler_ {nullptr};
+      Subscription* next_ {nullptr};
       friend class SubscriptionList;
   };
 
@@ -28,12 +31,13 @@ namespace mqtt {
   class SubscriptionList {
     public:
       ~SubscriptionList() { clear(); }
-      void clear();
-      void push(Subscription* node) { if (node != nullptr) { node->next = top; top = node; } }
+      void clear() { if (top_ != nullptr) { delete top_; top_ = nullptr; }}
+      void push(Subscription* node) { if (node != nullptr) { node->next_ = top_; top_ = node; } }
       void import(const SubscriptionList& subs);
       Subscription* find(Filter& filter);
     private:
-      Subscription* top;
+      Subscription* top_ {nullptr};
+      friend class Subscription;
   };
 
 };

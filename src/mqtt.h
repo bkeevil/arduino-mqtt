@@ -19,6 +19,6 @@
 #include "tokenizer.h"
 #include "message.h"
 #include "subscriptions.h"
-#include "client.h"
+#include "connection.h"
 
 #endif // Include guard
