@@ -17,8 +17,7 @@
 
 #define DEBUG
 
-/** @cond */
-
+/** @brief Error codes */
 enum class ErrorCode : byte {
   NONE=0,
   ALREADY_CONNECTED            = 101,
@@ -51,8 +50,6 @@ enum class ErrorCode : byte {
   UNKNOWN                      = 255
 };
 
-/** @endcond */
-
 /** @brief Quality of Service Levels */
 enum class QoS : byte {
   AT_MOST_ONCE = 0,           /**< The packet is sent once and may or may not be received by the server */
@@ -70,12 +67,10 @@ enum class TokenKind : byte {
   SINGLELEVEL
 };
 
-class MQTTToken {
-  public:
-    MQTTToken() : kind(TokenKind::UNKNOWN), next(nullptr) {};
+struct MQTTToken {
     String text;
-    TokenKind kind;
-    MQTTToken* next;
+    TokenKind kind {TokenKind::UNKNOWN};
+    MQTTToken* next {nullptr};
 };
 
 class MQTTTokenizer {
