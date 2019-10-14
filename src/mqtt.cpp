@@ -31,14 +31,14 @@ enum class PacketType : byte {
   DISCONNECT = 14
 };
 
-/* MQTTTokenizer */
+/* Tokenizer */
 
 /** @brief  Parse a topic name or topic filter string into a linked list of tokens
  *  @param  text  The topic or filter sting to Parse
  */
-void MQTTTokenizer::tokenize(const String& text) {
+void Tokenizer::tokenize(const String& text) {
   clear();
-  MQTTToken* ptr = nullptr;
+  Token* ptr = nullptr;
   int len = text.length();
 
   if (len > 0) {
@@ -60,8 +60,8 @@ void MQTTTokenizer::tokenize(const String& text) {
 /** @brief  Recursively tokenize text and add the tokens to the linked list.
  *  @remark Called by tokenize()
  */
-void MQTTTokenizer::_tokenize(String text, MQTTToken* ptr) {
-  MQTTToken* node = new MQTTToken;
+void Tokenizer::_tokenize(String text, Token* ptr) {
+  Token* node = new Token;
 
   if (ptr == nullptr) {
     first_ = node;
@@ -83,10 +83,10 @@ void MQTTTokenizer::_tokenize(String text, MQTTToken* ptr) {
 
 }
 
-String& MQTTTokenizer::getString(String& s) const {
+String& Tokenizer::getString(String& s) const {
   int i=0;
   int size=0;
-  MQTTToken* ptr;
+  Token* ptr;
 
   s = "";
  
@@ -121,8 +121,8 @@ String& MQTTTokenizer::getString(String& s) const {
   return s;
 }
 
-void MQTTTokenizer::clear() {
-  MQTTToken* ptr;
+void Tokenizer::clear() {
+  Token* ptr;
   while (first_ != nullptr) {
     ptr = first_->next;
     delete first_;
@@ -132,15 +132,15 @@ void MQTTTokenizer::clear() {
   count_ = 0;
 }
 
-/* MQTTTopic */
+/* Topic */
 
 /** @brief    Validates the tokenized topic string.
  *  @returns  True if the topic string is valid.
  *  @remark   An empty topic string is invalid
  *  @remark   If the topic string is found to be invalid the token list is cleared
  */
-bool MQTTTopic::validate() {
-  MQTTToken* ptr;
+bool Topic::validate() {
+  Token* ptr;
 
   // An empty topic string is invalid
   if (count() == 0) return false;
@@ -164,7 +164,7 @@ bool MQTTTopic::validate() {
  *  @remark   Any token containing a hash or a plus is invalid
  *  @returns  True if the token is valid 
  */ 
-bool MQTTTopic::validateToken(MQTTToken& token) {   // TODO: Should token be const?
+bool Topic::validateToken(Token& token) {   // TODO: Should token be const?
   if ((token.text.length() == 0) || ((token.text.indexOf('#') == -1) && (token.text.indexOf('+') == -1))) {
     token.kind = TokenKind::VALID;
     return true;
@@ -174,15 +174,15 @@ bool MQTTTopic::validateToken(MQTTToken& token) {   // TODO: Should token be con
   }
 }
 
-/* MQTTFilter */
+/* Filter */
 
 /** @brief    Validates the tokenized filter string.
  *  @returns  True if the filter string is valid.
  *  @remark   An empty topic string is invalid
  *  @remark   If the topic string is determined to be invalid, the token list is cleared.
  */
-bool MQTTFilter::validate() {
-  MQTTToken* ptr;
+bool Filter::validate() {
+  Token* ptr;
 
   // An empty filter string is invalid
   if (first() == nullptr) {
@@ -211,7 +211,7 @@ bool MQTTFilter::validate() {
  *  @remark   The plus character must only appear on its own
  *  @returns  True if the token is valid 
  */ 
-bool MQTTFilter::validateToken(MQTTToken& token) { // TODO: Should token be const?
+bool Filter::validateToken(Token& token) { // TODO: Should token be const?
   size_t len;
   int hashPos;
   int plusPos;
@@ -255,12 +255,12 @@ bool MQTTFilter::validateToken(MQTTToken& token) { // TODO: Should token be cons
  *  @param    topic The topic to match
  *  @Returns  True if the topic matches the filter
  */   
-bool MQTTFilter::match(const MQTTTopic& topic) const {
+bool Filter::match(const Topic& topic) const {
   int i = 0;
   bool result = false;
 
-  MQTTToken* filterPtr;
-  MQTTToken* topicPtr;
+  Token* filterPtr;
+  Token* topicPtr;
   String s;
 
   filterPtr = first();
@@ -301,16 +301,16 @@ bool MQTTFilter::match(const MQTTTopic& topic) const {
   return result;
 }
 
-/* MQTTMessage */
+/* Message */
 
 /** @brief    Copy constructor */
-MQTTMessage::MQTTMessage(const MQTTMessage& m): topic(m.topic), qos(m.qos), duplicate(m.duplicate), retain(m.retain), data_len(m.data_len), data_size(m.data_len), data_pos(m.data_len) {
+Message::Message(const Message& m): topic(m.topic), qos(m.qos), duplicate(m.duplicate), retain(m.retain), data_len(m.data_len), data_size(m.data_len), data_pos(m.data_len) {
   data = (byte*) malloc(data_len);
   memcpy(data,m.data,data_len);
 }
 
 /** @brief    Printing a message object prints its data buffer */
-size_t MQTTMessage::printTo(Print& p) const {
+size_t Message::printTo(Print& p) const {
   size_t pos;
   for (pos=0;pos<data_len;pos++) { 
     p.print(data[pos]);
@@ -321,7 +321,7 @@ size_t MQTTMessage::printTo(Print& p) const {
 /** @brief    Reserve size bytes of memory for the data buffer.
  *            Use to reduce the number of memory allocations when the 
  *            size of the data buffer is known before hand. */
-void MQTTMessage::reserve(size_t size) {
+void Message::reserve(size_t size) {
   if (data_size == 0) {
     data = (byte*) malloc(size);
   } else {
@@ -335,7 +335,7 @@ void MQTTMessage::reserve(size_t size) {
  *            call pack() to discard the unused portion. Useful when the size 
  *            of the data buffer is not easily determined. 
 */
-void MQTTMessage::pack() {
+void Message::pack() {
   if (data_size > data_len) {
     if (data_len == 0) {
       free(data);
@@ -351,7 +351,7 @@ void MQTTMessage::pack() {
  *  @param    str   The C string to compare the data buffer with
  *  @remark   For a case insensitive compare see dataEqualsIgnoreCase()
  */
-bool MQTTMessage::dataEquals(const char* str) const {
+bool Message::dataEquals(const char* str) const {
   const String s(str);
   String d((char*)data);
   return s.equals(d);
@@ -361,7 +361,7 @@ bool MQTTMessage::dataEquals(const char* str) const {
  *  @param    str   The String object to compare the data buffer with
  *  @remark   For a case insensitive compare see dataEqualsIgnoreCase()
  */
-bool MQTTMessage::dataEquals(const String& str) const {
+bool Message::dataEquals(const String& str) const {
   String d((char*)data);
   return str.equals(d);
 }
@@ -370,7 +370,7 @@ bool MQTTMessage::dataEquals(const String& str) const {
  *  @param    str   The C string to compare the data buffer with
  *  @remark   For a case sensitive compare see dataEquals()
  */
-bool MQTTMessage::dataEqualsIgnoreCase(const char* str) const {
+bool Message::dataEqualsIgnoreCase(const char* str) const {
   const String s(str);
   String d((char*)data);
   return s.equalsIgnoreCase(d);
@@ -380,7 +380,7 @@ bool MQTTMessage::dataEqualsIgnoreCase(const char* str) const {
  *  @param    str   The String object to compare the data buffer with
  *  @remark   For a case insensitive compare see dataEquals()
  */
-bool MQTTMessage::dataEqualsIgnoreCase(const String& str) const {
+bool Message::dataEqualsIgnoreCase(const String& str) const {
   String d((char*)data);
   return str.equalsIgnoreCase(d);
 }
@@ -388,7 +388,7 @@ bool MQTTMessage::dataEqualsIgnoreCase(const String& str) const {
 /** @brief   Reads a single byte from the data buffer and advances to the next character
  *  @returns -1 if there is no more data to be read
  */
-int MQTTMessage::read() {
+int Message::read() {
   if (data_pos < data_len) {
     return data[data_pos++];
   } else {
@@ -399,7 +399,7 @@ int MQTTMessage::read() {
 /** @brief   Reads a single byte from the data buffer without advancing to the next character
  *  @returns -1 if there is no more data to be read
  */
-int MQTTMessage::peek() const {
+int Message::peek() const {
   if (data_pos < data_len) {
     return data[data_pos];
   } else {
@@ -407,7 +407,7 @@ int MQTTMessage::peek() const {
   }
 }
 
-size_t MQTTMessage::write(const byte c) {
+size_t Message::write(const byte c) {
   data_len++;
   if (data_size == 0) {
     data = (byte *) malloc(messageAllocBlockSize);
@@ -419,7 +419,7 @@ size_t MQTTMessage::write(const byte c) {
   return 1;
 }
  
-size_t MQTTMessage::write(const byte* buffer, const size_t size) {
+size_t Message::write(const byte* buffer, const size_t size) {
   data_len += size;
    if (data_size == 0) {
     data = (byte *) malloc(data_len);
@@ -431,9 +431,9 @@ size_t MQTTMessage::write(const byte* buffer, const size_t size) {
   return size;
 }
 
-/* MQTTMessageQueue */
+/* MessageQueue */
 
-void MQTTMessageQueue::clear() {
+void MessageQueue::clear() {
   QueuedMessage* ptr = first;
   while (first != NULL) {
     ptr = first;
@@ -447,7 +447,7 @@ void MQTTMessageQueue::clear() {
   last = NULL;
 }
 
-bool MQTTMessageQueue::interval() {
+bool MessageQueue::interval() {
   bool result = true;
   QueuedMessage* qm;
 
@@ -471,7 +471,7 @@ bool MQTTMessageQueue::interval() {
   return result;
 }
 
-void MQTTMessageQueue::push(QueuedMessage* qm) {
+void MessageQueue::push(QueuedMessage* qm) {
   
   if (last != NULL) {
     last->next = qm;
@@ -485,7 +485,7 @@ void MQTTMessageQueue::push(QueuedMessage* qm) {
   count++;
 }
 
-QueuedMessage* MQTTMessageQueue::pop() {
+QueuedMessage* MessageQueue::pop() {
   QueuedMessage* ptr;
   if (first != NULL) {
     ptr = first;
@@ -500,7 +500,7 @@ QueuedMessage* MQTTMessageQueue::pop() {
   }
 }
 
-void MQTTPUBLISHQueue::resend(QueuedMessage* qm) { 
+void PUBLISHQueue::resend(QueuedMessage* qm) { 
   #ifdef DEBUG
   Serial.println("Resending PUBLISH packet");
   #endif
@@ -508,14 +508,14 @@ void MQTTPUBLISHQueue::resend(QueuedMessage* qm) {
   client->sendPUBLISH(qm->message); 
 }
 
-void MQTTPUBRECQueue::resend(QueuedMessage* qm) { 
+void PUBRECQueue::resend(QueuedMessage* qm) { 
   #ifdef DEBUG
   Serial.println("Resending PUBREC packet");
   #endif
   client->sendPUBREC(qm->packetid); 
 }
 
-void MQTTPUBRELQueue::resend(QueuedMessage* qm) { 
+void PUBRELQueue::resend(QueuedMessage* qm) { 
   #ifdef DEBUG
   Serial.println("Resending PUBREL packet");
   #endif
@@ -547,9 +547,9 @@ void SubscriptionList::add(const char* filter, QoS qos) {
   }
 }
 
-/* MQTTBase */
+/* Base */
 
-bool MQTTBase::readRemainingLength(long* value) {
+bool Base::readRemainingLength(long* value) {
   long multiplier = 1;
   int i;
   byte encodedByte;
@@ -571,7 +571,7 @@ bool MQTTBase::readRemainingLength(long* value) {
   return true;
 }
 
-bool MQTTBase::writeRemainingLength(const long value) {
+bool Base::writeRemainingLength(const long value) {
   byte encodedByte;
   long lvalue;
 
@@ -589,7 +589,7 @@ bool MQTTBase::writeRemainingLength(const long value) {
   return true;
 }
  
-bool MQTTBase::readWord(word* value) {
+bool Base::readWord(word* value) {
   int i;
   byte b;
   i = stream.read();
@@ -609,7 +609,7 @@ bool MQTTBase::readWord(word* value) {
   }
 }
 
-bool MQTTBase::writeWord(const word value) {
+bool Base::writeWord(const word value) {
   byte b = value >> 8;
   if (stream.write(b) == 1) {
     b = value & 0xFF;
@@ -623,7 +623,7 @@ bool MQTTBase::writeWord(const word value) {
   }
 }
 
-bool MQTTBase::readStr(String& str) {
+bool Base::readStr(String& str) {
   word len;
 
   if (stream.available() < len) {
@@ -637,7 +637,7 @@ bool MQTTBase::readStr(String& str) {
   }
 }
 
-bool MQTTBase::writeStr(const String& str) {
+bool Base::writeStr(const String& str) {
   word len;
 
   len = str.length();
@@ -650,16 +650,16 @@ bool MQTTBase::writeStr(const String& str) {
 
 /* MQTT Client */
 
-void MQTTClient::reset() {
+void Client::reset() {
   pingIntervalRemaining = 0;
   pingCount = 0;
-  PUBRECQueue.clear();
-  PUBLISHQueue.clear();
-  PUBRELQueue.clear();
+  PUBRECQueue_.clear();
+  PUBLISHQueue_.clear();
+  PUBRELQueue_.clear();
   isConnected = false;
 }
 
-bool MQTTClient::connect(const String& clientID, const String& username, const String& password, const bool cleanSession) {
+bool Client::connect(const String& clientID, const String& username, const String& password, const bool cleanSession) {
   byte flags;
   word rl;      // Remaining Length
 
@@ -696,9 +696,9 @@ bool MQTTClient::connect(const String& clientID, const String& username, const S
 
   if (cleanSession) {
     flags |= 2;
-    PUBLISHQueue.clear();
-    PUBRECQueue.clear();
-    PUBRELQueue.clear();    
+    PUBLISHQueue_.clear();
+    PUBRECQueue_.clear();
+    PUBRELQueue_.clear();    
   }
 
   if ( (stream.write((byte)0x10) != 1) ||
@@ -739,7 +739,7 @@ bool MQTTClient::connect(const String& clientID, const String& username, const S
   return true;
 }
 
-ErrorCode MQTTClient::recvCONNACK() {
+ErrorCode Client::recvCONNACK() {
   byte b;
   bool sessionPresent = false;
   CONNACKResult returnCode = CONNACKResult::SUCCESS;    // Default return code is success
@@ -782,7 +782,7 @@ ErrorCode MQTTClient::recvCONNACK() {
   return ErrorCode::UNKNOWN;
 }
 
-void MQTTClient::connected() {
+void Client::connected() {
   isConnected = true;
   if (stream.available() > 0) {
     dataAvailable();
@@ -792,7 +792,7 @@ void MQTTClient::connected() {
   }
 }
 
-void MQTTClient::disconnect() {
+void Client::disconnect() {
   if (disconnectMessage.enabled) {
     disconnectMessage.qos = QoS::AT_MOST_ONCE;
     publish(disconnectMessage);
@@ -802,7 +802,7 @@ void MQTTClient::disconnect() {
   isConnected = false;
 }
 
-void MQTTClient::disconnected() {
+void Client::disconnected() {
   #ifdef DEBUG
   Serial.println("Server terminated the MQTT connection");
   #endif
@@ -810,7 +810,7 @@ void MQTTClient::disconnected() {
   pingIntervalRemaining = 0;
 }
 
-bool MQTTClient::sendPINGREQ() {
+bool Client::sendPINGREQ() {
   #ifdef DEBUG
   Serial.println("sendPINGREQ");
   #endif
@@ -827,7 +827,7 @@ bool MQTTClient::sendPINGREQ() {
   }
 }
 
-ErrorCode MQTTClient::pingIntervalTimer() {
+ErrorCode Client::pingIntervalTimer() {
   if (pingIntervalRemaining == 1) {
     if (pingCount >= 2) {
       pingCount = 0;
@@ -849,17 +849,17 @@ ErrorCode MQTTClient::pingIntervalTimer() {
   return ErrorCode::NONE;
 }
 
-bool MQTTClient::queueIntervalTimer() {
+bool Client::queueIntervalTimer() {
   bool result;
 
-  result = PUBLISHQueue.interval();
-  result &= PUBRECQueue.interval();
-  result &= PUBRELQueue.interval();
+  result = PUBLISHQueue_.interval();
+  result &= PUBRECQueue_.interval();
+  result &= PUBRELQueue_.interval();
 
   return result;
 }
 
-ErrorCode MQTTClient::intervalTimer() {
+ErrorCode Client::intervalTimer() {
   if (!queueIntervalTimer()) {
     return ErrorCode::PACKET_QUEUE_TIMEOUT;
   } else {
@@ -867,7 +867,7 @@ ErrorCode MQTTClient::intervalTimer() {
   }
 }
 
-bool MQTTClient::subscribe(const word packetid, const String& filter, const QoS qos) {
+bool Client::subscribe(const word packetid, const String& filter, const QoS qos) {
   bool result;
 
   if (filter != NULL) {
@@ -882,7 +882,7 @@ bool MQTTClient::subscribe(const word packetid, const String& filter, const QoS 
   }
 }
 
-ErrorCode MQTTClient::recvSUBACK(const long remainingLength) {
+ErrorCode Client::recvSUBACK(const long remainingLength) {
   int i;
   byte rc;
   long rl;
@@ -913,7 +913,7 @@ ErrorCode MQTTClient::recvSUBACK(const long remainingLength) {
   }
 }
 
-bool MQTTClient::unsubscribe(const word packetid, const String& filter) {
+bool Client::unsubscribe(const word packetid, const String& filter) {
   bool result;
 
   if (filter != NULL) {
@@ -927,7 +927,7 @@ bool MQTTClient::unsubscribe(const word packetid, const String& filter) {
   }
 }
 
-ErrorCode MQTTClient::recvUNSUBACK() {
+ErrorCode Client::recvUNSUBACK() {
   word packetid;
 
   #ifdef DEBUG
@@ -945,8 +945,8 @@ ErrorCode MQTTClient::recvUNSUBACK() {
   }
 }
 
-bool MQTTClient::publish(const String& topic, byte* data, const size_t data_len, const QoS qos, const bool retain) {
-  MQTTMessage* msg = new MQTTMessage();
+bool Client::publish(const String& topic, byte* data, const size_t data_len, const QoS qos, const bool retain) {
+  Message* msg = new Message();
   msg->topic = topic;
   msg->qos = qos;
   msg->retain = retain;
@@ -955,8 +955,8 @@ bool MQTTClient::publish(const String& topic, byte* data, const size_t data_len,
   return sendPUBLISH(msg);
 }
 
-bool MQTTClient::publish(const String& topic, const String& data, const QoS qos, const bool retain) {
-  MQTTMessage* msg = new MQTTMessage();
+bool Client::publish(const String& topic, const String& data, const QoS qos, const bool retain) {
+  Message* msg = new Message();
   msg->topic = topic;
   msg->qos = qos;
   msg->retain = retain;
@@ -965,7 +965,7 @@ bool MQTTClient::publish(const String& topic, const String& data, const QoS qos,
   return sendPUBLISH(msg);
 }
 
-bool MQTTClient::sendPUBLISH(MQTTMessage* msg) {
+bool Client::sendPUBLISH(Message* msg) {
   byte flags = 0;
   word packetid;
   long remainingLength;
@@ -1022,10 +1022,10 @@ bool MQTTClient::sendPUBLISH(MQTTMessage* msg) {
         Serial.println("Adding message to PUBLISHQueue");
         QueuedMessage* qm = new QueuedMessage;
         qm->packetid = packetid;
-        qm->timeout = MQTTMessageQueue::packetTimeout;
+        qm->timeout = MessageQueue::packetTimeout;
         qm->retries = 0;
         qm->message = msg;
-        PUBLISHQueue.push(qm);
+        PUBLISHQueue_.push(qm);
       } else {
         free(msg);
       }
@@ -1039,8 +1039,8 @@ bool MQTTClient::sendPUBLISH(MQTTMessage* msg) {
   } else return false;
 }
 
-ErrorCode MQTTClient::recvPUBLISH(const byte flags, const long remainingLength) {
-  MQTTMessage* msg;
+ErrorCode Client::recvPUBLISH(const byte flags, const long remainingLength) {
+  Message* msg;
   QueuedMessage* qm;
   word packetid=0;
   long rl;
@@ -1050,7 +1050,7 @@ ErrorCode MQTTClient::recvPUBLISH(const byte flags, const long remainingLength) 
   Serial.println("Received PUBLISH");
   #endif
 
-  msg = new MQTTMessage();
+  msg = new Message();
 
   msg->duplicate = (flags & 8) > 0;
   msg->retain = (flags & 1) > 0;
@@ -1089,9 +1089,9 @@ ErrorCode MQTTClient::recvPUBLISH(const byte flags, const long remainingLength) 
       qm = new QueuedMessage;
       qm->packetid = packetid;
       qm->retries = 0;
-      qm->timeout = MQTTMessageQueue::packetTimeout;
+      qm->timeout = MessageQueue::packetTimeout;
       qm->message = msg;
-      PUBRECQueue.push(qm);
+      PUBRECQueue_.push(qm);
       sendPUBREC(packetid);
     }
     return ErrorCode::NONE;
@@ -1100,7 +1100,7 @@ ErrorCode MQTTClient::recvPUBLISH(const byte flags, const long remainingLength) 
   }
 }
 
-ErrorCode MQTTClient::recvPUBACK() {
+ErrorCode Client::recvPUBACK() {
   word packetid;
   int iterations;
   QueuedMessage *qm;
@@ -1113,17 +1113,17 @@ ErrorCode MQTTClient::recvPUBACK() {
     #ifdef DEBUG
     Serial.print("  packetid="); Serial.println(packetid);
     #endif
-    iterations = PUBLISHQueue.getCount();
+    iterations = PUBLISHQueue_.getCount();
     Serial.print("  iterations="); Serial.println(iterations);
     if (iterations > 0) {
       do {
-        qm = PUBLISHQueue.pop();
+        qm = PUBLISHQueue_.pop();
         if (qm->packetid == packetid) {
           delete qm->message;
           free(qm);
           return ErrorCode::NONE;
         }
-        PUBLISHQueue.push(qm);
+        PUBLISHQueue_.push(qm);
       } while (--iterations > 0);
     }
     return ErrorCode::PACKETID_NOT_FOUND;
@@ -1132,7 +1132,7 @@ ErrorCode MQTTClient::recvPUBACK() {
   }
 }
 
-bool MQTTClient::sendPUBACK(const word packetid) {
+bool Client::sendPUBACK(const word packetid) {
   bool result;
   
   #ifdef DEBUG
@@ -1149,7 +1149,7 @@ bool MQTTClient::sendPUBACK(const word packetid) {
   }
 }
 
-ErrorCode MQTTClient::recvPUBREC() {
+ErrorCode Client::recvPUBREC() {
   word packetid;
   int iterations;
   QueuedMessage *qm;
@@ -1159,10 +1159,10 @@ ErrorCode MQTTClient::recvPUBREC() {
   #endif
 
   if (readWord(&packetid)) {
-    iterations = PUBLISHQueue.getCount();
+    iterations = PUBLISHQueue_.getCount();
     if (iterations > 0) {
       do {
-        qm = PUBLISHQueue.pop();
+        qm = PUBLISHQueue_.pop();
         if (qm->packetid == packetid) {
           delete qm->message;
           free(qm);
@@ -1172,7 +1172,7 @@ ErrorCode MQTTClient::recvPUBREC() {
             return ErrorCode::SEND_PUBCOMP_FAILED;
           }
         }
-        PUBRELQueue.push(qm);
+        PUBRELQueue_.push(qm);
        } while (--iterations > 0);
     }
     return ErrorCode::PACKETID_NOT_FOUND;
@@ -1181,7 +1181,7 @@ ErrorCode MQTTClient::recvPUBREC() {
   }
 }
 
-bool MQTTClient::sendPUBREC(const word packetid) {
+bool Client::sendPUBREC(const word packetid) {
   bool result;
 
   #ifdef DEBUG
@@ -1198,7 +1198,7 @@ bool MQTTClient::sendPUBREC(const word packetid) {
   }
 }
 
-ErrorCode MQTTClient::recvPUBREL() {
+ErrorCode Client::recvPUBREL() {
   word packetid;
   int iterations;
   QueuedMessage *qm;
@@ -1208,10 +1208,10 @@ ErrorCode MQTTClient::recvPUBREL() {
   #endif
 
   if (readWord(&packetid)) {
-    iterations = PUBRECQueue.getCount();
+    iterations = PUBRECQueue_.getCount();
     if (iterations > 0) {
       do {
-        qm = PUBRECQueue.pop();
+        qm = PUBRECQueue_.pop();
         if (qm->packetid == packetid) {
           receiveMessage(*qm->message);
           delete qm->message;
@@ -1222,7 +1222,7 @@ ErrorCode MQTTClient::recvPUBREL() {
             return ErrorCode::SEND_PUBCOMP_FAILED;
           }
         }
-        PUBRECQueue.push(qm);
+        PUBRECQueue_.push(qm);
       } while (--iterations > 0);
     }
     return ErrorCode::PACKETID_NOT_FOUND;
@@ -1231,7 +1231,7 @@ ErrorCode MQTTClient::recvPUBREL() {
   }
 }
 
-bool MQTTClient::sendPUBREL(const word packetid) {
+bool Client::sendPUBREL(const word packetid) {
   bool result;
   QueuedMessage* qm;
 
@@ -1246,10 +1246,10 @@ bool MQTTClient::sendPUBREL(const word packetid) {
     if (result) {
       qm = new QueuedMessage;
       qm->packetid = packetid;
-      qm->timeout  = MQTTMessageQueue::packetTimeout;
+      qm->timeout  = MessageQueue::packetTimeout;
       qm->retries  = 0;
       qm->message  = NULL;
-      PUBRELQueue.push(qm);
+      PUBRELQueue_.push(qm);
     }
     return result;
   } else {
@@ -1257,7 +1257,7 @@ bool MQTTClient::sendPUBREL(const word packetid) {
   }
 }
 
-ErrorCode MQTTClient::recvPUBCOMP() {
+ErrorCode Client::recvPUBCOMP() {
   word packetid;
   int iterations;
   QueuedMessage *qm;
@@ -1267,15 +1267,15 @@ ErrorCode MQTTClient::recvPUBCOMP() {
   #endif
 
   if (readWord(&packetid)) {
-    iterations == PUBRELQueue.getCount();
+    iterations == PUBRELQueue_.getCount();
     if (iterations > 0) {
       do {
-        qm = PUBRELQueue.pop();
+        qm = PUBRELQueue_.pop();
         if (qm->packetid == packetid) {
           delete qm;
           return ErrorCode::NONE;
         }
-        PUBRELQueue.push(qm);
+        PUBRELQueue_.push(qm);
       } while (--iterations > 0);
     }
     return ErrorCode::PACKETID_NOT_FOUND;
@@ -1284,7 +1284,7 @@ ErrorCode MQTTClient::recvPUBCOMP() {
   }
 }
 
-bool MQTTClient::sendPUBCOMP(const word packetid) {
+bool Client::sendPUBCOMP(const word packetid) {
   bool result;
 
   #ifdef DEBUG
@@ -1301,7 +1301,7 @@ bool MQTTClient::sendPUBCOMP(const word packetid) {
   }
 }
 
-ErrorCode MQTTClient::dataAvailable() {
+ErrorCode Client::dataAvailable() {
   int i;
   byte b;
   byte flags;

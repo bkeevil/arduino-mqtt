@@ -6,7 +6,7 @@
  *  @copyright  GNU General Public License Version 3
  */
 
-// TODO: WillMessage should be converted to an MQTTMessage object
+// TODO: WillMessage should be converted to an Message object
 
 #ifndef MQTT_H
 #define MQTT_H
@@ -69,60 +69,60 @@ enum class TokenKind : byte {
   SINGLELEVEL
 };
 
-struct MQTTToken {
+struct Token {
     String text;
     TokenKind kind {TokenKind::UNKNOWN};
-    MQTTToken* next {nullptr};
+    Token* next {nullptr};
 };
 
-class MQTTTokenizer {
+class Tokenizer {
   public:
-    MQTTTokenizer() : count_(0), first_(nullptr), valid_(false) {}
-    MQTTTokenizer(const String& text) : count_(0), first_(nullptr) { tokenize(text); }
-    ~MQTTTokenizer() { clear(); }
+    Tokenizer() : count_(0), first_(nullptr), valid_(false) {}
+    Tokenizer(const String& text) : count_(0), first_(nullptr) { tokenize(text); }
+    ~Tokenizer() { clear(); }
     void clear();
     bool valid() const { return valid_; }
     byte count() const { return count_; }
-    MQTTToken* first() const { return first_; }
+    Token* first() const { return first_; }
     bool setString(const String& s) { tokenize(s); return validate(); }; 
     String& getString(String& s) const; 
   protected:
     void tokenize(const String& text);
     virtual bool validate() = 0;
     byte count_;
-    MQTTToken* first_;
+    Token* first_;
     bool valid_;
   private:
-    void _tokenize(String text, MQTTToken* ptr);
+    void _tokenize(String text, Token* ptr);
 };
 
-class MQTTTopic;
+class Topic;
 
-class MQTTFilter : public MQTTTokenizer {
+class Filter : public Tokenizer {
   public:
-    MQTTFilter() : MQTTTokenizer() {}
-    MQTTFilter(const String& filter) : MQTTTokenizer(filter) { valid_ = validate(); }
-    bool match(const MQTTTopic& topic) const;
+    Filter() : Tokenizer() {}
+    Filter(const String& filter) : Tokenizer(filter) { valid_ = validate(); }
+    bool match(const Topic& topic) const;
   protected:
     virtual bool validate() override;
   private:
-    bool validateToken(MQTTToken& token);
+    bool validateToken(Token& token);
 };
 
-class MQTTTopic : public MQTTTokenizer {
+class Topic : public Tokenizer {
   public:
-    MQTTTopic() : MQTTTokenizer() {}
-    MQTTTopic(const String& topic) : MQTTTokenizer(topic) { valid_ = validate(); }
-    bool match(const MQTTFilter& filter) const { return filter.match(*this); };
+    Topic() : Tokenizer() {}
+    Topic(const String& topic) : Tokenizer(topic) { valid_ = validate(); }
+    bool match(const Filter& filter) const { return filter.match(*this); };
   protected:
     virtual bool validate() override;
   private:
-    bool validateToken(MQTTToken& token);    
+    bool validateToken(Token& token);    
 };
 
-class MQTTClient;  // Forward declaration
+class Client;  // Forward declaration
 
-/** @class    MQTTMessage mqtt.h
+/** @class    Message mqtt.h
  *  @brief    Represents an MQTT message that is sent or received 
  *  @details  Use the methods of the Print and Printable ancestor classes to access the message 
  *            data buffer. If the size of the data buffer is known, call reserve() to reserve 
@@ -131,11 +131,11 @@ class MQTTClient;  // Forward declaration
  *            unused bytes.
  * @remark    The Print interface is used to write directly to the data buffer. 
  */
-class MQTTMessage: public Printable, public Print {
+class Message: public Printable, public Print {
   public:
-    MQTTMessage() = default;
-    MQTTMessage(const String& topic_): topic(topic_) {}
-    MQTTMessage(const MQTTMessage& m);
+    Message() = default;
+    Message(const String& topic_): topic(topic_) {}
+    Message(const Message& m);
 
     /** @brief The message topic*/
     String topic;         
@@ -242,8 +242,8 @@ struct QueuedMessage {
   byte timeout;
   /** @brief Number of times the packet has been retreansmitted */
   byte retries;
-  /** @brief The MQTTMessage object that was sent */
-  MQTTMessage* message;
+  /** @brief The Message object that was sent */
+  Message* message;
   /** @brief Pointer to the next structure in the linked list */
   QueuedMessage* next;  
 };
@@ -252,10 +252,10 @@ struct QueuedMessage {
  *  @brief   Base abstract class for managing a linked list of messages
  *  @details Descendant classes that retransmit packets must implement the resend() methods
  */
-class MQTTMessageQueue {
+class MessageQueue {
   public:
-    MQTTMessageQueue(MQTTClient* client) : client(client) {}
-    ~MQTTMessageQueue() { clear(); }
+    MessageQueue(Client* client) : client(client) {}
+    ~MessageQueue() { clear(); }
     int getCount() const { return count; }
     void clear();
     bool interval();
@@ -264,7 +264,7 @@ class MQTTMessageQueue {
     static const byte packetTimeout {3};          /**< Number of seconds before a packet is resent */
     static const byte packetRetries {2};          /**< Number of retry attempts to send a packet before the connection is considered dead */
   protected:
-    MQTTClient* client;
+    Client* client;
     virtual void resend(QueuedMessage* qm) = 0;
   private:
     QueuedMessage* first = NULL;
@@ -272,54 +272,51 @@ class MQTTMessageQueue {
     int count = 0;
 };
 
-/** @class   MQTTPUBLISHQueue mqtt.h
- *  @brief   Message queue for QOS1 & QOS2 Messages that have been sent but have not been acknowledged
+/** @brief   Message queue for QOS1 & QOS2 Messages that have been sent but have not been acknowledged
  *  @details When a new PUBLISH packet is sent with QOS1 or 2 it is placed in the PUBLISH Queue. 
  *           In the case of a QOS1 message, it is removed from this queue on receipt of a PUBACK message with a matching packetID.
  *           In the case of a QOS2 message, it is moved to the PUBREL queue in response to a PUBREC message. 
  */ 
-class MQTTPUBLISHQueue: public MQTTMessageQueue {
+class PUBLISHQueue: public MessageQueue {
   protected:
     /** @brief Resends the PUBLISH message with the duplicate flag set to true */
     virtual void resend(QueuedMessage* qm);
   public:
-    MQTTPUBLISHQueue(MQTTClient* client) : MQTTMessageQueue(client) {}
+    PUBLISHQueue(Client* client) : MessageQueue(client) {}
 };
 
-/** @class   MQTTPUBRECQueue mqtt.h
- *  @brief   Message queue for QOS2 messages that have been received but have not been dispatched.
+/** @brief   Message queue for QOS2 messages that have been received but have not been dispatched.
  *  @details When a QOS2 message is received it is stored in the PUBREC queue until a PUBREL message is received,
  *           At which point receiveMessage() is called and the message is removed from the queue.
  *           If no PUBREL message is recieved, the PUBREC packet is retransmitted. 
  */
-class MQTTPUBRECQueue: public MQTTMessageQueue {
+class PUBRECQueue: public MessageQueue {
   protected:
     /** @brief Resends the PUBREC message */
     virtual void resend(QueuedMessage* qm);
   public:
-    MQTTPUBRECQueue(MQTTClient* client) : MQTTMessageQueue(client) {}    
+    PUBRECQueue(Client* client) : MessageQueue(client) {}    
 };
 
-/** @class   MQTTPUBRELQueue mqtt.h
- *  @brief   Message queue for QOS2 messages where a PUBREC has been recieved and a PUBREL has been sent
+/** @brief   Message queue for QOS2 messages where a PUBREC has been recieved and a PUBREL has been sent
  *  @details The message object is deleted from the queue when a PUBCOMP message with a matching packetID is received
  *  @warning The message attribute is not used and is always NULL in this queue.          
  */
-class MQTTPUBRELQueue: public MQTTMessageQueue {
+class PUBRELQueue: public MessageQueue {
   protected:
     /** @brief Resends the PUBREL message */
     virtual void resend(QueuedMessage* qm);
   public:
-    MQTTPUBRELQueue(MQTTClient* client) : MQTTMessageQueue(client) {}    
+    PUBRELQueue(Client* client) : MessageQueue(client) {}    
 };
 
-/** @brief   The abstract base class for the MQTTClient class
+/** @brief   The abstract base class for the Client class
  *  @details Provides several protected utility methods for reading/writing data to/from a Stream object as 
  *           per the 3.1.1 protocol specs  */
-class MQTTBase {
+class Base {
   public:
     /** @brief The user of the component will supply a reference to an object of the Stream class */
-    MQTTBase(Stream& stream): stream(stream) {} 
+    Base(Stream& stream): stream(stream) {} 
     protected:
       /** @brief The network stream to read/write from */
     Stream& stream; 
@@ -354,16 +351,16 @@ class MQTTBase {
 };
 
 /** @brief    The main class for an MQTT client connection
- *  @details  Create an instance of MQTTClient passing a reference to a Stream object as a constructor parameter */ 
-class MQTTClient: public MQTTBase {
+ *  @details  Create an instance of Client passing a reference to a Stream object as a constructor parameter */ 
+class Client: public Base {
   public:
-    MQTTMessage willMessage;
-    MQTTMessage connectMessage;
-    MQTTMessage disconnectMessage;
+    Message willMessage;
+    Message connectMessage;
+    Message disconnectMessage;
 
     bool isConnected;
     // Constructor/Destructor
-    MQTTClient(Stream& stream): MQTTBase(stream), PUBLISHQueue(this), PUBRECQueue(this), PUBRELQueue(this) {} 
+    Client(Stream& stream): Base(stream), PUBLISHQueue_(this), PUBRECQueue_(this), PUBRELQueue_(this) {} 
     // Outgoing events - Override in descendant classes
     virtual void connected();
     
@@ -374,7 +371,7 @@ class MQTTClient: public MQTTBase {
     virtual void initSession() {};
     virtual void subscribed(const word packetID, const byte resultCode) {};
     virtual void unsubscribed(const word packetID) {};
-    virtual void receiveMessage(const MQTTMessage& msg) {};
+    virtual void receiveMessage(const Message& msg) {};
     // Main Interface Methods
     bool connect(const String& clientID, const String& username, const String& password, const bool cleanSession = true);
     
@@ -394,10 +391,10 @@ class MQTTClient: public MQTTBase {
      *  @warning The data sent by this function does not include a trailing NULL character */
     bool publish(const String& topic, const String& data, const QoS qos = QoS::AT_MOST_ONCE, const bool retain=false);
 
-    /** @brief   Publish an MQTTMessage object to the server.
+    /** @brief   Publish an Message object to the server.
      *  This method will create a copy of msg and manage its lifecycle. You are free to destroy the original message 
      *  object after calling this function. */
-    bool publish(MQTTMessage& msg) { MQTTMessage* m = new MQTTMessage(msg); return sendPUBLISH(m); }
+    bool publish(Message& msg) { Message* m = new Message(msg); return sendPUBLISH(m); }
 
     // Incoming events - Call from your application 
     ErrorCode dataAvailable(); /**< Needs to be called whenever there is data available on the connection */
@@ -410,9 +407,9 @@ class MQTTClient: public MQTTBase {
     static const word minPacketID {256};          /**< The first 256 packet IDs are reserved for subscribe/unsubscribe packet ids */
     static const word maxPacketID {65535};        /**< The maximum packet ID that can be assigned */
   private:
-    MQTTPUBLISHQueue  PUBLISHQueue;         /**< Outgoing QOS1 or QOS2 Publish Messages that have not been acknowledged */
-    MQTTPUBRECQueue   PUBRECQueue;          /**< Incoming QOS2 messages that have not been acknowledged */
-    MQTTPUBRELQueue   PUBRELQueue;          /**< Outgoing QOS2 messages that have not been released */
+    PUBLISHQueue  PUBLISHQueue_;         /**< Outgoing QOS1 or QOS2 Publish Messages that have not been acknowledged */
+    PUBRECQueue   PUBRECQueue_;          /**< Incoming QOS2 messages that have not been acknowledged */
+    PUBRELQueue   PUBRELQueue_;          /**< Outgoing QOS2 messages that have not been released */
     word nextPacketID = minPacketID;  /**< Packet IDs 0..255 are used for subscriptions */
     int  pingIntervalRemaining;
     byte pingCount;
@@ -431,15 +428,15 @@ class MQTTClient: public MQTTBase {
     ErrorCode recvPUBCOMP();
     //
     bool sendPINGREQ();
-    bool sendPUBLISH(MQTTMessage* msg);
+    bool sendPUBLISH(Message* msg);
     bool sendPUBACK(const word packetid);
     bool sendPUBREL(const word packetid);
     bool sendPUBREC(const word packetid);
     bool sendPUBCOMP(const word packetid);
     //  
-    friend class MQTTPUBLISHQueue;
-    friend class MQTTPUBRECQueue;
-    friend class MQTTPUBRELQueue;
+    friend class PUBLISHQueue;
+    friend class PUBRECQueue;
+    friend class PUBRELQueue;
 };
 
 }; // namespace mqtt

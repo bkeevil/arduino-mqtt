@@ -16,7 +16,7 @@ void runTest(bool b) {
 }
 
 void testTopic() {
-  MQTTTopic topic;
+  Topic topic;
   String s;
 
   Serial.print("Blank Topic: ");
@@ -60,7 +60,7 @@ void testTopic() {
 }
 
 void testFilter() {
-  MQTTFilter filter;
+  Filter filter;
   String s;
   
   Serial.print("Blank Filter: ");
@@ -123,8 +123,8 @@ void testFilter() {
 
 void testGroup3() {
   Serial.println("A subscription to A/# is a subscription to the topic A and all topics beneath A");
-  MQTTFilter filter("A/#");
-  MQTTTopic topic;
+  Filter filter("A/#");
+  Topic topic;
 
   topic.setString("A");
   runTest(filter.match(topic));
@@ -140,8 +140,8 @@ void testGroup3() {
 
 void testGroup4() {
   Serial.println("A subscription to A/+ is a subscription to the topics directly beneath, but not A itself");
-  MQTTFilter filter("A/+");
-  MQTTTopic topic;
+  Filter filter("A/+");
+  Topic topic;
 
   topic.setString("A");
   runTest(!filter.match(topic));
@@ -158,8 +158,8 @@ void testGroup4() {
 
 void testGroup5() {
   Serial.println("subscription to A/+/# is a subscription to all topics beneath A, but not A itself");
-  MQTTFilter filter("A/+/#");
-  MQTTTopic topic;
+  Filter filter("A/+/#");
+  Topic topic;
 
   topic.setString("A");
   runTest(!filter.match(topic));
