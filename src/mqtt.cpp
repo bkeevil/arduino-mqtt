@@ -1259,14 +1259,14 @@ byte MQTTClient::dataAvailable() {
   int i;
   byte b;
   byte flags;
-  byte packetType;
+  PacketType packetType;
   long remainingLength=0;
 
   i = stream.read();
   if (i > -1) {
     b = i;
     flags = b & 0x0F;
-    packetType = b >> 4;
+    packetType = static_cast<PacketType>(b >> 4);
   } else {
     return MQTT_ERROR_INSUFFICIENT_DATA;
   }
@@ -1279,19 +1279,19 @@ byte MQTTClient::dataAvailable() {
   pingCount = 0;
 
   switch (packetType) {
-    case ptCONNACK   : return recvCONNACK(); break;
-    case ptSUBACK    : return recvSUBACK(remainingLength); break;
-    case ptUNSUBACK  : return recvUNSUBACK(); break;
-    case ptPUBLISH   : return recvPUBLISH(flags,remainingLength); break;
+    case PacketType::CONNACK   : return recvCONNACK(); break;
+    case PacketType::SUBACK    : return recvSUBACK(remainingLength); break;
+    case PacketType::UNSUBACK  : return recvUNSUBACK(); break;
+    case PacketType::PUBLISH   : return recvPUBLISH(flags,remainingLength); break;
     #ifdef DEBUG
-    case ptPINGRESP  : Serial.println("PINGRESP"); return MQTT_ERROR_NONE; break;
+    case PacketType::PINGRESP  : Serial.println("PINGRESP"); return MQTT_ERROR_NONE; break;
     #else
-    case ptPINGRESP  : return MQTT_ERROR_NONE; break;
+    case PacketType::PINGRESP  : return MQTT_ERROR_NONE; break;
     #endif
-    case ptPUBACK    : return recvPUBACK(); break;
-    case ptPUBREC    : return recvPUBREC(); break;
-    case ptPUBREL    : return recvPUBREL(); break;
-    case ptPUBCOMP   : return recvPUBCOMP(); break;
+    case PacketType::PUBACK    : return recvPUBACK(); break;
+    case PacketType::PUBREC    : return recvPUBREC(); break;
+    case PacketType::PUBREL    : return recvPUBREL(); break;
+    case PacketType::PUBCOMP   : return recvPUBCOMP(); break;
     default: return MQTT_ERROR_UNHANDLED_PACKETTYPE;
   }
 

@@ -63,9 +63,23 @@
 /** @endcond */
 
 /** @brief Used to identify the type of a received packet */
-enum MQTTPacketType {ptBROKERCONNECT = 0, ptCONNECT = 1, ptCONNACK = 2, ptPUBLISH = 3, ptPUBACK = 4,
-  ptPUBREC = 5, ptPUBREL = 6, ptPUBCOMP = 7, ptSUBSCRIBE = 8, ptSUBACK = 9, ptUNSUBSCRIBE = 10,
-  ptUNSUBACK = 11, ptPINGREQ = 12, ptPINGRESP = 13, ptDISCONNECT = 14};
+enum class PacketType : byte {
+  BROKERCONNECT = 0, 
+  CONNECT = 1, 
+  CONNACK = 2, 
+  PUBLISH = 3, 
+  PUBACK = 4,
+  PUBREC = 5, 
+  PUBREL = 6, 
+  PUBCOMP = 7, 
+  SUBSCRIBE = 8, 
+  SUBACK = 9, 
+  UNSUBSCRIBE = 10,
+  UNSUBACK = 11, 
+  PINGREQ = 12, 
+  PINGRESP = 13, 
+  DISCONNECT = 14
+};
 
 /** @brief Quality of Service Levels */
 enum class QoS : byte {
