@@ -3,14 +3,16 @@
 
 #include "Arduino.h"
 
-
 namespace mqtt {
 
+  // Forward Declarations
   class Token;
   class Tokenizer;
+  class Topic;
+  class Filter;
 
-  /** Classifies a token in a topic name or filter string */
-  enum TokenKind {
+  /** @brief Classifies a token in a topic name or filter string */
+  enum class TokenKind : byte {
     UNKNOWN=0,        /**< Validate() has not been called */
     INVALID,          /**< The token is invalid */
     VALID,            /**< The token is valid */
@@ -18,16 +20,23 @@ namespace mqtt {
     SINGLELEVEL       /**< The token is the single level wildcard character "+" */
   };
 
+  /** @brief    Represents a token in a topic stric or filter 
+   *  @details  Token is used internally for validating topic names and filters and for matching topics to subscriptions.
+   */
   class Token {
     public:
       Token() = default;
       Token(const Token& rhs) : text(rhs.text), kind(rhs.kind), next(nullptr) {}
       Token(Token&& rhs) : text(std::move(rhs.text)), kind(rhs.kind), next(rhs.next) {}
       String text;
-      TokenKind kind {UNKNOWN};
+      TokenKind kind {TokenKind::UNKNOWN};
       Token* next {nullptr};
   };
 
+  /** @brief    Parses a topic string or filter into tokens
+   *  @details  Tokenizer is the abstract ancestor class of Topic and Filter and provides methods for parsing
+   *            a string into a list of tokens and validating those tokens according to MQTT protocol specs
+   */
   class Tokenizer {
     public:
       Tokenizer() : count(0), first(nullptr), valid(false) {}
@@ -49,6 +58,11 @@ namespace mqtt {
       String text;
   };
 
+  /** @brief    Represents a filter string in a subscription 
+   *  @details  Internally stores the string as a list of parsed tokens
+   *            Validates a filter string to ensure it conforms to the MQTT protocol
+   *            Provides an efficient mechanism for comparing a Topic to see if it matches the Filter
+   */
   class Filter : public Tokenizer {
     public:
       Filter() : Tokenizer() {}
@@ -63,6 +77,10 @@ namespace mqtt {
       bool validateToken(Token& token);
   };
 
+  /** @brief    Represents a topic string in a message 
+   *  @details  Internally stores the string as a list of parsed tokens
+   *            Validates the topic string to ensure it conforms to the MQTT protocol
+   */
   class Topic : public Tokenizer {
     public:
       Topic() : Tokenizer() {}
@@ -76,6 +94,6 @@ namespace mqtt {
       bool validateToken(Token& token);    
   };
 
-}
+}; // Namespace mqtt
 
 #endif

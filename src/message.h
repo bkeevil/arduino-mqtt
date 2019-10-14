@@ -8,6 +8,7 @@
 namespace mqtt {
 
   using MessageHandlerFunc = bool (*)(const Subscription& sub, const Message& msg);
+  
   using DefaultMessageHandlerFunc = void (*)(const Message& msg);
 
   /** @brief    Represents an MQTT message that is sent or received 
@@ -20,6 +21,7 @@ namespace mqtt {
    */
   class Message: public Printable, public Print {
     public:
+      Message() = default;
       Message(const String& topic, QoS qos = QoS::AT_MOST_ONCE): topic(topic) {}
       Message(const String& topic, const String& data, QoS qos = QoS::AT_MOST_ONCE): topic(topic) { print(data); }
       Message(const String& topic, const byte* data, const size_t data_len, QoS qos = QoS::AT_MOST_ONCE): topic(topic) { write(data,data_len); }
@@ -54,10 +56,10 @@ namespace mqtt {
       size_t write(const byte* buffer, size_t size) override;
       
       /** @brief The number of bytes remaining to be read from the buffer */
-      int available() const { return data_len - data_pos; }
+      int available() const { return data_len - data_pos_; }
       
       /** @brief The number of bytes allocated but not written to */
-      int availableForWrite() const /* override */ { return data_size - data_pos; }  
+      int availableForWrite() const /* override */ { return data_size_ - data_pos_; }  
       
       /** @brief Pre-allocate bytes in the data buffer to prevent reallocation and fragmentation
        *  @param size Number of bytes to reserve */
@@ -67,7 +69,7 @@ namespace mqtt {
       void pack();
       
       /** @brief Set the index from which the next character will be read/written */
-      void seek(int pos) { data_pos = pos; }
+      void seek(int pos) { data_pos_ = pos; }
 
       /** @brief Returns true if data matches str **/
       bool dataEquals(const char* str) const;
@@ -81,15 +83,18 @@ namespace mqtt {
       /** @brief Returns true if data matches str **/
       bool dataEqualsIgnoreCase(const String& str) const;
 
+      byte* data() { return data_; }
+      size_t data_len() { return data_len_; }
       Topic topic;                  /**< The message topic */
       QoS qos {QoS::AT_MOST_ONCE};  /**< The message QoS level */
       bool duplicate {false}; /**< Set to true if this message is a duplicate copy of a previous message because it has been resent */
       bool retain { false };  /**< For incoming messages, whether it is being sent because it is a retained message. For outgoing messages, tells the server to retain the message. */
+      static const byte msgAllocBlockSize {8}; /**< Minimum additional RAM to allocate when the buffer needs to be enlarged. Reduces the number of calls to realloc() */
     private: 
-      byte* data;             /**< The data buffer */           
-      size_t data_len;        /**< The number of valid bytes in the data buffer. Might by < data_size*/
-      size_t data_size;       /**< The number of bytes allocated in the data buffer */
-      size_t data_pos;        /**< Index of the next byte to be written */
+      byte* data_;             /**< The data buffer */           
+      size_t data_len_;        /**< The number of valid bytes in the data buffer. Might by < data_size*/
+      size_t data_size_;       /**< The number of bytes allocated in the data buffer */
+      size_t data_pos_;        /**< Index of the next byte to be written */
   };
 
   /** @brief Used for will message. Could also be used for connect message, or disconnect message */

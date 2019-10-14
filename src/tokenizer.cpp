@@ -3,7 +3,7 @@
 using namespace mqtt;
 
 /** @brief  Copy Constructor */
-Tokenizer::Tokenizer(const Tokenizer& rhs) {
+mqtt::Tokenizer::Tokenizer(const Tokenizer& rhs) {
   count = rhs.count;
   valid = rhs.valid;
   if (rhs.first == nullptr) {
@@ -21,7 +21,7 @@ Tokenizer::Tokenizer(const Tokenizer& rhs) {
 }
   
 /** @brief  Move Constructor */
-Tokenizer::Tokenizer(Tokenizer&& rhs) {
+mqtt::Tokenizer::Tokenizer(Tokenizer&& rhs) {
   count = rhs.count;
   valid = rhs.valid;
   first = rhs.first;
@@ -32,7 +32,7 @@ Tokenizer::Tokenizer(Tokenizer&& rhs) {
 
 /** @brief  Move assignment operator */
 
-Tokenizer& Tokenizer::operator=(Tokenizer&& rhs) {
+Tokenizer& mqtt::Tokenizer::operator=(Tokenizer&& rhs) {
   if (&rhs == this) return *this;
   count = rhs.count;
   valid = rhs.valid;
@@ -46,7 +46,7 @@ Tokenizer& Tokenizer::operator=(Tokenizer&& rhs) {
 /** @brief  Parse a topic name or topic filter string into a linked list of tokens
  *  @param  text  The topic or filter sting to Parse
  */
-void Tokenizer::tokenize() {
+void mqtt::Tokenizer::tokenize() {
   clear();
   Token* ptr = nullptr;
   int len = text.length();
@@ -67,7 +67,7 @@ void Tokenizer::tokenize() {
 /** @brief  Recursively tokenize text and add the tokens to the linked list.
  *  @remark Called by tokenize()
  */
-void Tokenizer::_tokenize(String text, Token* ptr) {
+void mqtt::Tokenizer::_tokenize(String text, Token* ptr) {
   Token* node = new Token;
 
   if (ptr == nullptr) {
@@ -89,7 +89,7 @@ void Tokenizer::_tokenize(String text, Token* ptr) {
   }
 }
 
-void Tokenizer::clear() {
+void mqtt::Tokenizer::clear() {
   Token* ptr;
   while (first != nullptr) {
     ptr = first->next;
@@ -108,7 +108,7 @@ void Tokenizer::clear() {
  *  @remark   An empty topic string is invalid
  *  @remark   If the topic string is found to be invalid the token list is cleared
  */
-bool Topic::validate() {
+bool mqtt::Topic::validate() {
   Token* ptr;
 
   // An empty topic string is invalid
@@ -127,18 +127,18 @@ bool Topic::validate() {
 }
 
 /** @brief    Validates a token as a topic name. 
- *            Sets the token kind to tkValid or tkInvalid.
+ *            Sets the token kind to TokenKind::VALID or TokenKind::INVALID.
  *  @param    token   A reference to the token to validate
  *  @remark   Empty string is valid
  *  @remark   Any token containing a hash or a plus is invalid
  *  @returns  True if the token is valid 
  */ 
-bool Topic::validateToken(Token& token) {   // TODO: Should token be const?
+bool mqtt::Topic::validateToken(Token& token) {   // TODO: Should token be const?
   if ((token.text.length() == 0) || ((token.text.indexOf('#') == -1) && (token.text.indexOf('+') == -1))) {
-    token.kind = tkValid;
+    token.kind = TokenKind::VALID;
     return true;
   } else {
-    token.kind = tkInvalid;
+    token.kind = TokenKind::INVALID;
     return false;
   }
 }
@@ -150,7 +150,7 @@ bool Topic::validateToken(Token& token) {   // TODO: Should token be const?
  *  @remark   An empty topic string is invalid
  *  @remark   If the topic string is determined to be invalid, the token list is cleared.
  */
-bool Filter::validate() {
+bool mqtt::Filter::validate() {
   Token* ptr;
 
   // An empty filter string is invalid
@@ -171,7 +171,7 @@ bool Filter::validate() {
 }
 
 /** @brief    Validates a token as a topic name. 
- *            Sets the token kind to tkValid or tkInvalid.
+ *            Sets the token kind to TokenKind::VALID or TokenKind::INVALID.
  *  @param    token   The token to validate
  *  @remark   An empty string is always valid
  *  @remark   Any token not containing a special char is valid
@@ -180,7 +180,7 @@ bool Filter::validate() {
  *  @remark   The plus character must only appear on its own
  *  @returns  True if the token is valid 
  */ 
-bool Filter::validateToken(Token& token) { // TODO: Should token be const?
+bool mqtt::Filter::validateToken(Token& token) { // TODO: Should token be const?
   size_t len;
   int hashPos;
   int plusPos;
@@ -188,7 +188,7 @@ bool Filter::validateToken(Token& token) { // TODO: Should token be const?
   // An empty string is always valid
   len = token.text.length();
   if (len == 0) {
-    token.kind = tkValid;
+    token.kind = TokenKind::VALID;
     return true;
   }
 
@@ -197,24 +197,24 @@ bool Filter::validateToken(Token& token) { // TODO: Should token be const?
 
   // Any token not containing a special char is valid
   if ((hashPos == -1) && (plusPos == -1)) {
-    token.kind = tkValid;
+    token.kind = TokenKind::VALID;
     return true;
   }
 
   // The hash and plus character must only appear on their own
   // The hash character must only be in the last in the list of tokens
   if ((hashPos > 0) || (plusPos > 0) || ((hashPos == 0) && (token.next != nullptr))) {
-    token.kind = tkInvalid;
+    token.kind = TokenKind::INVALID;
     return false;
   } 
   
   // Token is valid but set the token kind enum for special chars
   if (hashPos == 0) {
-    token.kind = tkMultiLevel;
+    token.kind = TokenKind::MULTILEVEL;
   } else if (plusPos == 0) {
-    token.kind = tkSingleLevel;
+    token.kind = TokenKind::SINGLELEVEL;
   } else {
-    token.kind = tkValid;
+    token.kind = TokenKind::VALID;
   }
   
   return true;
@@ -224,7 +224,7 @@ bool Filter::validateToken(Token& token) { // TODO: Should token be const?
  *  @param    topic The topic to match
  *  @Returns  True if the topic matches the filter
  */   
-bool Filter::match(const Topic& topic) const {
+bool mqtt::Filter::match(const Topic& topic) const {
   int i = 0;
   bool result = false;
 
@@ -237,15 +237,15 @@ bool Filter::match(const Topic& topic) const {
 
   while (filterPtr != nullptr) {
     if (i >= topic.count) {
-      return (result && (filterPtr->kind == tokenKind_t::tkMultiLevel));
+      return (result && (filterPtr->kind == TokenKind::MULTILEVEL));
     }
     
-    if (filterPtr->kind == tkInvalid) { 
+    if (filterPtr->kind == TokenKind::INVALID) { 
       return false;
-    } else if (filterPtr->kind == tokenKind_t::tkValid) {
+    } else if (filterPtr->kind == TokenKind::VALID) {
       result = (filterPtr->text == topicPtr->text);
       if (!result) return result;
-    } else if (filterPtr->kind == tkMultiLevel) {
+    } else if (filterPtr->kind == TokenKind::MULTILEVEL) {
       return true;
     } else {
       result = true;
@@ -264,7 +264,7 @@ bool Filter::match(const Topic& topic) const {
       ++i;
       filterPtr = filterPtr->next;
     }
-    result = (result && (filterPtr != nullptr) && filterPtr->kind == tkMultiLevel);
+    result = (result && (filterPtr != nullptr) && filterPtr->kind == TokenKind::MULTILEVEL);
   }
 
   return result;
@@ -274,12 +274,12 @@ bool Filter::match(const Topic& topic) const {
  *  @param    filter  The filter to compare
  *  @Returns  True if the filters are an exact match
  */   
-bool Filter::equals(const Filter& filter) const {
+bool mqtt::Filter::equals(const Filter& filter) const {
   Token* lhs = first;
   Token* rhs = filter.first;
 
   while (lhs != nullptr) {
-    if ((rhs == nullptr) || (lhs->kind == tkInvalid) || (rhs->kind == tkInvalid) || (lhs->kind != rhs->kind) || ((lhs->kind == tkValid) && !lhs->text.equals(rhs->text))) {
+    if ((rhs == nullptr) || (lhs->kind == TokenKind::INVALID) || (rhs->kind == TokenKind::INVALID) || (lhs->kind != rhs->kind) || ((lhs->kind == TokenKind::VALID) && !lhs->text.equals(rhs->text))) {
       return false;
     }
     lhs = lhs->next;

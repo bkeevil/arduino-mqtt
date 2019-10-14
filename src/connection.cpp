@@ -2,24 +2,31 @@
 
 using namespace mqtt;
 
-Connection::Connection(Stream& stream): Network(stream) {
+mqtt::Connection::Connection(Client& client): Network(client) {
+  // Init event function pointers to nullptr
   for (int i;i=0;i<Event::MAX) {
     events_[i] = nullptr;
   }
 } 
 
-void Connection::reset() {
+/** @brief Reset is called internally on a protocol error to drop a connection and reset it to a disconnected state
+ *         without sending a DISCONNECT packet to the server. */
+void mqtt::Connection::reset() {
   if (state != ConnectionState::DISCONNECTED) {
     disconnected();
+  }
   pingIntervalRemaining = 0;
   pingCount = 0;
   if (cleanSession) {
-    Pending.clear();
+    pending.clear();
   }
   state = ConnectionState::DISCONNECTED;
+  if (autoReconnect) {
+    lastMillis = millis();
+  }
 }
 
-bool Connection::connect(const char* clientid, const char* username, const char* password) {
+bool mqtt::Connection::connect(const char* clientid, const char* username, const char* password) {
   int len;
   byte flags = 0;
   word remamingLength;
@@ -105,7 +112,7 @@ bool Connection::connect(const char* clientid, const char* username, const char*
   return true;
 }
 
-byte Connection::recvCONNACK() {
+byte mqtt::Connection::recvCONNACK() {
   byte b;
   bool sessionPresent = false;
   byte returnCode = ConnackResult::SUCCESS;    // Default return code is success
@@ -148,7 +155,7 @@ byte Connection::recvCONNACK() {
   return ErrorCode::UNKNOWN;
 }
 
-void Connection::connected() {
+void mqtt::Connection::connected() {
   state = ConnectionState::CONNECTED;
   if (client.available() > 0) {
     dataAvailable(); //???
@@ -158,7 +165,7 @@ void Connection::connected() {
   }
 }
 
-void Connection::disconnect() {
+void mqtt::Connection::disconnect() {
   if (disconnectMessage.enabled) {
     disconnectMessage.qos = QoS::AT_MOST_ONCE;
     disconnectMessage.send(*this);
@@ -170,7 +177,7 @@ void Connection::disconnect() {
   state = ConnectionState::DISCONNECTED;
 }
 
-void Connection::disconnected() {
+void mqtt::Connection::disconnected() {
   #ifdef DEBUG
   Serial.println("Server terminated the MQTT connection");
   #endif
@@ -179,7 +186,7 @@ void Connection::disconnected() {
   if (events_[Event::DISCONNECTED] != nullptr) events_[DISCONNECTED]();
 }
 
-bool Connection::sendPINGREQ() {
+bool mqtt::Connection::sendPINGREQ() {
   #ifdef DEBUG
   Serial.println("sendPINGREQ");
   #endif
@@ -196,7 +203,7 @@ bool Connection::sendPINGREQ() {
   }
 }
 
-byte Connection::pingInterval() {
+byte mqtt::Connection::pingInterval() {
   if (pingIntervalRemaining == 1) {
     if (pingCount >= 2) {
       pingCount = 0;
@@ -218,7 +225,7 @@ byte Connection::pingInterval() {
   return ErrorCode::NONE;
 }
 
-void Connection::poll() {
+void mqtt::Connection::poll() {
   unsigned long int currentMillis;
 
   if (state == ConnectionState::CONNECTED) {
@@ -259,7 +266,7 @@ void Connection::poll() {
  
 }
 
-byte Connection::handlePacket(PacketType packetType, byte flags, long remainingLength) {
+byte mqtt::Connection::handlePacket(PacketType packetType, byte flags, long remainingLength) {
   switch (packetType) {
     case CONNACK   : return recvCONNACK(); break;
     case SUBACK    : return recvSUBACK(remainingLength); break;
@@ -278,7 +285,7 @@ byte Connection::handlePacket(PacketType packetType, byte flags, long remainingL
   }
 }
 
-byte Connection::dataAvailable() {
+byte mqtt::Connection::dataAvailable() {
   int i;
   byte b;
   byte flags;
@@ -304,12 +311,12 @@ byte Connection::dataAvailable() {
   return handlePacket(packetType,flags,remainingLength);
 }
 
-bool Connection::subscribe(MQTTSubscriptionList& subs) {
+bool mqtt::Connection::subscribe(MQTTSubscriptionList& subs) {
   if (isConnected) sendSUBSCRIBE(subs);
   subscriptions_.push(subs);
 }
 
-bool Connection::subscribe(const String& filter, const qos_t qos, const MQTTMessageHandlerFunc handler) {
+bool mqtt::Connection::subscribe(const String& filter, const qos_t qos, const MQTTMessageHandlerFunc handler) {
   MQTTSubscriptionList subs;
   MQTTSubscription* sub = new MQTTSubscription(filter,qos,handler);
   if (sub->filter.valid) {
@@ -319,7 +326,7 @@ bool Connection::subscribe(const String& filter, const qos_t qos, const MQTTMess
 }
 
 /** @brief  Creates an MQTT Subscribe packet from a list of subscriptions and sends it to the server */
-bool Connection::sendSUBSCRIBE(const MQTTSubscriptionList& subscriptions) {
+bool mqtt::Connection::sendSUBSCRIBE(const MQTTSubscriptionList& subscriptions) {
   bool result;
   MQTTSubscription* sub;
   int rl = 2;
@@ -374,7 +381,7 @@ bool Connection::sendSUBSCRIBE(const MQTTSubscriptionList& subscriptions) {
   return result;
 }
 
-byte Connection::recvSUBACK(const long remainingLength) {
+byte mqtt::Connection::recvSUBACK(const long remainingLength) {
   int i;
   byte rc;
   long rl;
@@ -405,7 +412,7 @@ byte Connection::recvSUBACK(const long remainingLength) {
   }
 }
 
-bool Connection::unsubscribe(const String& filter) {
+bool mqtt::Connection::unsubscribe(const String& filter) {
   /*
   bool result;
 
@@ -420,7 +427,7 @@ bool Connection::unsubscribe(const String& filter) {
   }*/
 }
 
-byte Connection::recvUNSUBACK() {
+byte mqtt::Connection::recvUNSUBACK() {
   word packetid;
 
   #ifdef DEBUG
@@ -438,7 +445,7 @@ byte Connection::recvUNSUBACK() {
   }
 }
 
-bool Connection::publish(const String& topic, byte* data, const size_t data_len, const qos_t qos, const bool retain) {
+bool mqtt::Connection::publish(const String& topic, byte* data, const size_t data_len, const qos_t qos, const bool retain) {
   MQTTMessage* msg = new MQTTMessage(topic);
   msg->qos = qos;
   msg->retain = retain;
@@ -447,7 +454,7 @@ bool Connection::publish(const String& topic, byte* data, const size_t data_len,
   return sendPUBLISH(msg);
 }
 
-bool Connection::publish(const String& topic, const String& data, const qos_t qos, const bool retain) {
+bool mqtt::Connection::publish(const String& topic, const String& data, const qos_t qos, const bool retain) {
   MQTTMessage* msg = new MQTTMessage(topic);
   msg->qos = qos;
   msg->retain = retain;
@@ -456,7 +463,7 @@ bool Connection::publish(const String& topic, const String& data, const qos_t qo
   return sendPUBLISH(msg);
 }
 
-bool Connection::sendPUBLISH(const char* topic, const byte* data, const size_t data_len, const QoS qos, const bool retain, const bool duplicate) {
+bool mqtt::Connection::sendPUBLISH(const char* topic, const byte* data, const size_t data_len, const QoS qos, const bool retain, const bool duplicate) {
 
   if (topic != nullptr) {
     #ifdef DEBUG
@@ -490,9 +497,9 @@ bool Connection::sendPUBLISH(const char* topic, const byte* data, const size_t d
       #endif
 
       bool result = (
-        (stream.write(0x30 | flags) == 1) &&
+        (client.write(0x30 | flags) == 1) &&
         writeRemainingLength(remainingLength) &&
-        writeStr(mt)
+        writeStr(topic)
       );
 
       if (result && (msg->qos > 0)) {
@@ -524,7 +531,7 @@ bool Connection::sendPUBLISH(const char* topic, const byte* data, const size_t d
   } else return false;
 }
 
-byte Connection::recvPUBLISH(const byte flags, const long remainingLength) {
+byte mqtt::Connection::recvPUBLISH(const byte flags, const long remainingLength) {
   MQTTMessage* msg;
   queuedMessage_t* qm;
   word packetid=0;
@@ -588,7 +595,7 @@ byte Connection::recvPUBLISH(const byte flags, const long remainingLength) {
   }
 }
 
-byte Connection::recvPUBACK() {
+byte mqtt::Connection::recvPUBACK() {
   word packetid;
   int iterations;
   queuedMessage_t *qm;
@@ -620,7 +627,7 @@ byte Connection::recvPUBACK() {
   }
 }
 
-bool Connection::sendPUBACK(const word packetid) {
+bool mqtt::Connection::sendPUBACK(const word packetid) {
   bool result;
   
   #ifdef DEBUG
@@ -637,7 +644,7 @@ bool Connection::sendPUBACK(const word packetid) {
   }
 }
 
-byte Connection::recvPUBREC() {
+byte mqtt::Connection::recvPUBREC() {
   word packetid;
   int iterations;
   queuedMessage_t *qm;
@@ -669,7 +676,7 @@ byte Connection::recvPUBREC() {
   }
 }
 
-bool Connection::sendPUBREC(const word packetid) {
+bool mqtt::Connection::sendPUBREC(const word packetid) {
   bool result;
 
   #ifdef DEBUG
@@ -686,7 +693,7 @@ bool Connection::sendPUBREC(const word packetid) {
   }
 }
 
-byte Connection::recvPUBREL() {
+byte mqtt::Connection::recvPUBREL() {
   word packetid;
   int iterations;
   queuedMessage_t *qm;
@@ -719,7 +726,7 @@ byte Connection::recvPUBREL() {
   }
 }
 
-bool Connection::sendPUBREL(const word packetid) {
+bool mqtt::Connection::sendPUBREL(const word packetid) {
   bool result;
   queuedMessage_t* qm;
 
@@ -745,7 +752,7 @@ bool Connection::sendPUBREL(const word packetid) {
   }
 }
 
-byte Connection::recvPUBCOMP() {
+byte mqtt::Connection::recvPUBCOMP() {
   word packetid;
   int iterations;
   queuedMessage_t *qm;
@@ -772,7 +779,7 @@ byte Connection::recvPUBCOMP() {
   }
 }
 
-bool Connection::sendPUBCOMP(const word packetid) {
+bool mqtt::Connection::sendPUBCOMP(const word packetid) {
   bool result;
 
   #ifdef DEBUG
@@ -788,3 +795,5 @@ bool Connection::sendPUBCOMP(const word packetid) {
     return false;
   }
 }
+
+} // namespace

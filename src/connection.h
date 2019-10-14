@@ -10,14 +10,17 @@
 
 namespace mqtt {
 
-  enum ConnectionState {DISCONNECTED=0,CONNECTING,CONNECTED};
+  enum class ConnectionState : byte {DISCONNECTED=0,CONNECTING,CONNECTED};
 
-  enum ConnackResult {SUCCESS=0,UNACCEPTABLE_PROTOCOL,CLIENTID_REJECTED,SERVER_UNAVAILABLE,BAD_USERNAME_PASSWORD,NOT_AUTHORIZED};
+  enum class ConnackResult : byte {SUCCESS=0,UNACCEPTABLE_PROTOCOL,CLIENTID_REJECTED,SERVER_UNAVAILABLE,BAD_USERNAME_PASSWORD,NOT_AUTHORIZED};
+
+  /** Used to identify the type of a received packet */
+  enum class PacketType : byte {BROKERCONNECT = 0, CONNECT = 1, CONNACK = 2, PUBLISH = 3, PUBACK = 4,
+    PUBREC = 5, PUBREL = 6, PUBCOMP = 7, SUBSCRIBE = 8, SUBACK = 9, UNSUBSCRIBE = 10,
+    UNSUBACK = 11, PINGREQ = 12, PINGRESP = 13, DISCONNECT = 14};
 
   /** TODO: Will be used to register event handlers */
   enum Event {CONNECTED = 0, INIT_SESSION, DISCONNECTED, MAX};
-
-namespace mqtt {
 
   /** @brief    The main class for an MQTT client connection
    *  @details  Create an instance of Client passing a reference to a Stream object as a constructor parameter */ 
@@ -32,7 +35,7 @@ namespace mqtt {
       void disconnect();
       
       void registerEvent(Event ev, EventHandlerFunc fn) { if (ev < Event::MAX) events_[ev] = fn; }      
-
+    
       void poll(); /**< Call poll() regularly from your application loop */
 
       SystemMessage willMessage;
@@ -47,14 +50,14 @@ namespace mqtt {
       word keepalive         {30};  /**< Number of seconds of inactivity before disconnect */
       ConnectionState state {ConnectionState::DISCONNECTED};
     protected:
-      //void reset();
+      void reset();
       virtual byte handlePacket(PacketType packetType, byte flags, long remainingLength);
       // Outgoing events - Override in descendant classes
       virtual void initSession()  { if (events_[Event::INIT_SESSION] != nullptr) events_[INIT_SESSION](); }
       virtual void connected()    { state = ConnectionState::CONNECTED; if (events_[Event::CONNECTED] != nullptr) events_[CONNECTED](); }
       virtual void disconnected();
       // Packet queue
-      Pending pending;
+      PacketList pending;
       word nextPacketID;
     private:
       byte pingInterval();
@@ -83,6 +86,6 @@ namespace mqtt {
       const char* password_ {nullptr};
   };
 
-}; // Namespace mqtt
+} // Namespace mqtt
 
 #endif
