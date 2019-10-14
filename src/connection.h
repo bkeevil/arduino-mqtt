@@ -1,10 +1,12 @@
 #ifndef MQTT_CONNECTION_H
 #define MQTT_CONNECTION_H
 
+#include "types.h"
 #include "network.h"
 #include "packet.h"
+#include "tokenizer.h"
 #include "message.h"
-#include "types.h"
+#include "subscriptions.h"
 
 namespace mqtt {
 
@@ -57,7 +59,20 @@ namespace mqtt {
     private:
       byte pingInterval();
       byte dataAvailable();
-      byte recvCONNACK();      
+      byte recvCONNACK();
+      byte recvSUBACK(const long remainingLength);
+      byte recvUNSUBACK();
+      byte recvPUBLISH(const byte flags, const long remainingLength);
+      byte recvPUBACK();
+      byte recvPUBREC();
+      byte recvPUBREL();
+      byte recvPUBCOMP();
+      bool sendSUBSCRIBE(const SubscriptionList& subscriptions);
+      bool sendPUBLISH();
+      bool sendPUBACK(const word packetid);
+      bool sendPUBREL(const word packetid);
+      bool sendPUBREC(const word packetid);
+      bool sendPUBCOMP(const word packetid);      
       bool sendPINGREQ();
       EventHandlerFunc events_[Event::MAX];
       unsigned long int lastMillis;

@@ -20,12 +20,12 @@ namespace mqtt {
    */
   class Message: public Printable, public Print {
     public:
-      Message(Client& client, const String& topic, QoS qos = QoS::AT_MOST_ONCE): client(client), topic(topic) {}
-      Message(Client& client, const String& topic, const String& data, QoS qos = QoS::AT_MOST_ONCE): client(client), topic(topic) { print(data); }
-      Message(Client& client, const String& topic, const byte* data, const size_t data_len, QoS qos = QoS::AT_MOST_ONCE): client(client), topic(topic) { write(data,data_len); }
-      Message(Client& client, const char* topic, QoS qos = QoS::AT_MOST_ONCE): client(client), topic(topic) {}
-      Message(Client& client, const char* topic, const char* data, QoS qos = QoS::AT_MOST_ONCE): client(client), topic(topic) { print(data); }
-      Message(Client& client, const char* topic, const byte* data, const size_t data_len, QoS qos = QoS::AT_MOST_ONCE): client(client), topic(topic) { write(data,data_len); }
+      Message(const String& topic, QoS qos = QoS::AT_MOST_ONCE): topic(topic) {}
+      Message(const String& topic, const String& data, QoS qos = QoS::AT_MOST_ONCE): topic(topic) { print(data); }
+      Message(const String& topic, const byte* data, const size_t data_len, QoS qos = QoS::AT_MOST_ONCE): topic(topic) { write(data,data_len); }
+      Message(const char* topic, QoS qos = QoS::AT_MOST_ONCE): topic(topic) {}
+      Message(const char* topic, const char* data, QoS qos = QoS::AT_MOST_ONCE): topic(topic) { print(data); }
+      Message(const char* topic, const byte* data, const size_t data_len, QoS qos = QoS::AT_MOST_ONCE): topic(topic) { write(data,data_len); }
       Message(const Message& msg);
       Message(Message&& msg);   
 
@@ -81,18 +81,11 @@ namespace mqtt {
       /** @brief Returns true if data matches str **/
       bool dataEqualsIgnoreCase(const String& str) const;
 
-      bool publish(Client& client) { retain = false; return sendPUBLISH(client); }    
-      bool publishRetained(Client& client) { retain = true; return sendPUBLISH(client); }
-      bool resend() { duplicate = true; return sendPUBLISH(client); }
-      bool retained() { return retain; }
-      bool duplicate() { return duplicate; }
-
       Topic topic;                  /**< The message topic */
-      QoS qos = QoS::AT_MOST_ONCE;  /**< The message QoS level */
-    private: 
-      Client& client;         /**< The client to publish this message on */
+      QoS qos {QoS::AT_MOST_ONCE};  /**< The message QoS level */
       bool duplicate {false}; /**< Set to true if this message is a duplicate copy of a previous message because it has been resent */
       bool retain { false };  /**< For incoming messages, whether it is being sent because it is a retained message. For outgoing messages, tells the server to retain the message. */
+    private: 
       byte* data;             /**< The data buffer */           
       size_t data_len;        /**< The number of valid bytes in the data buffer. Might by < data_size*/
       size_t data_size;       /**< The number of bytes allocated in the data buffer */
@@ -105,6 +98,10 @@ namespace mqtt {
     public:
       bool enabled {false};
   };
+
+  class MessageList {
+
+  }
 
 }
 
