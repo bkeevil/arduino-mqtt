@@ -17,15 +17,6 @@
 
 #define DEBUG
 
-#define MQTT_DEFAULT_PING_INTERVAL               20 /**< The number of seconds between pings. Must be less than MQTT_PACKET_TIMEOUT */
-#define MQTT_DEFAULT_PING_RETRY_INTERVAL          6 /**< Frequency of pings in seconds after a failed ping response */
-#define MQTT_DEFAULT_KEEPALIVE                   30 /**< Number of seconds of inactivity before disconnect */
-#define MQTT_MIN_PACKETID                       256 /**< The first 256 packet IDs are reserved for subscribe/unsubscribe packet ids */
-#define MQTT_MAX_PACKETID                     65535 /**< The maximum packet ID that can be assigned */
-#define MQTT_PACKET_TIMEOUT                       3 /**< Number of seconds before a packet is resent */
-#define MQTT_PACKET_RETRIES                       2 /**< Number of retry attempts to send a packet before the connection is considered dead */
-#define MQTT_MESSAGE_ALLOC_BLOCK_SIZE             8 /**< When writing a message data buffer, this much memory will be allocated at a time */
-
 /** @cond */
 
 enum class ErrorCode : byte {
@@ -218,6 +209,8 @@ class MQTTMessage: public Printable, public Print {
     bool equalsIgnoreCase(const char str[]) const;
     /** @brief Returns true if data matches str **/
     bool equalsIgnoreCase(const String& str) const;
+
+    static const byte messageAllocBlockSize {8};  /**< When writing a message data buffer, this much memory will be allocated at a time */
   private: 
     size_t data_size;      /**< The number of bytes allocated in the data buffer */
     size_t data_pos;       /**< Index of the next byte to be written */
@@ -259,6 +252,8 @@ class MQTTMessageQueue {
     bool interval();
     void push(queuedMessage_t* qm);
     queuedMessage_t* pop();
+    static const byte packetTimeout {3};          /**< Number of seconds before a packet is resent */
+    static const byte packetRetries {2};          /**< Number of retry attempts to send a packet before the connection is considered dead */
   protected:
     MQTTClient* client;
     virtual void resend(queuedMessage_t* qm) = 0;
@@ -372,7 +367,7 @@ class MQTTClient: public MQTTBase {
     virtual void unsubscribed(const word packetID) {};
     virtual void receiveMessage(const MQTTMessage& msg) {};
     // Main Interface Methods
-    bool connect(const String& clientID, const String& username, const String& password, const bool cleanSession = true, const word keepAlive = MQTT_DEFAULT_KEEPALIVE);
+    bool connect(const String& clientID, const String& username, const String& password, const bool cleanSession = true);
     
     /** @brief Disconnects the MQTT connection */
     void disconnect();
@@ -398,17 +393,24 @@ class MQTTClient: public MQTTBase {
     // Incoming events - Call from your application 
     ErrorCode dataAvailable(); /**< Needs to be called whenever there is data available on the connection */
     ErrorCode intervalTimer(); /**< Needs to be called once every second */
+  
+    // Configuration constants
+    static const byte pingInterval {20};          /**< The number of seconds between pings. Must be less than packetTimeout */
+    static const byte pingRetryInterval {3};      /**< Frequency of pings in seconds after a failed ping response */
+    static const word keepAlive {30};             /**< Number of seconds of inactivity before disconnect */
+    static const word minPacketID {256};          /**< The first 256 packet IDs are reserved for subscribe/unsubscribe packet ids */
+    static const word maxPacketID {65535};        /**< The maximum packet ID that can be assigned */
   private:
     MQTTPUBLISHQueue  PUBLISHQueue;         /**< Outgoing QOS1 or QOS2 Publish Messages that have not been acknowledged */
     MQTTPUBRECQueue   PUBRECQueue;          /**< Incoming QOS2 messages that have not been acknowledged */
     MQTTPUBRELQueue   PUBRELQueue;          /**< Outgoing QOS2 messages that have not been released */
-    word nextPacketID = MQTT_MIN_PACKETID;  /**< Packet IDs 0..255 are used for subscriptions */
+    word nextPacketID = minPacketID;  /**< Packet IDs 0..255 are used for subscriptions */
     int  pingIntervalRemaining;
     byte pingCount;
     //
     void reset();
-    ErrorCode pingInterval();
-    bool queueInterval();
+    ErrorCode pingIntervalTimer();
+    bool queueIntervalTimer();
     //
     ErrorCode recvCONNACK();
     ErrorCode recvSUBACK(const long remainingLength);

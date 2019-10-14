@@ -408,9 +408,9 @@ int MQTTMessage::peek() const {
 size_t MQTTMessage::write(const byte c) {
   data_len++;
   if (data_size == 0) {
-    data = (byte *) malloc(MQTT_MESSAGE_ALLOC_BLOCK_SIZE);
+    data = (byte *) malloc(messageAllocBlockSize);
   } else if (data_len >= data_size) {
-    data_size += MQTT_MESSAGE_ALLOC_BLOCK_SIZE;
+    data_size += messageAllocBlockSize;
     data = (byte *) realloc(data,data_size);
   }
   data[data_pos++] = c; 
@@ -453,13 +453,13 @@ bool MQTTMessageQueue::interval() {
   if (qm != NULL) {
     Serial.println("Queue Message Popped");
     if (--qm->timeout == 0) {
-      if (++qm->retries >= MQTT_PACKET_RETRIES) {
+      if (++qm->retries >= packetRetries) {
         result = false;
         delete qm->message;
         free(qm);
         Serial.println("Too many packet resent retries");
       } else {
-        qm->timeout = MQTT_PACKET_TIMEOUT;
+        qm->timeout = packetTimeout;
         push(qm);
         resend(qm);
         Serial.println("Resending packet");
@@ -632,7 +632,7 @@ void MQTTClient::reset() {
   isConnected = false;
 }
 
-bool MQTTClient::connect(const String& clientID, const String& username, const String& password, const bool cleanSession, const word keepAlive) {
+bool MQTTClient::connect(const String& clientID, const String& username, const String& password, const bool cleanSession) {
   byte flags;
   word rl;      // Remaining Length
 
@@ -707,7 +707,7 @@ bool MQTTClient::connect(const String& clientID, const String& username, const S
 
   stream.flush();
 
-  pingIntervalRemaining = MQTT_DEFAULT_PING_INTERVAL;
+  pingIntervalRemaining = pingInterval;
 
   return true;
 }
@@ -736,7 +736,7 @@ ErrorCode MQTTClient::recvCONNACK() {
   }
 
   if (returnCode == CONNACKResult::SUCCESS) {
-    pingIntervalRemaining = MQTT_DEFAULT_PING_INTERVAL;
+    pingIntervalRemaining = pingInterval;
     pingCount = 0;
     connected();
     if (!sessionPresent) {
@@ -800,7 +800,7 @@ bool MQTTClient::sendPINGREQ() {
   }
 }
 
-ErrorCode MQTTClient::pingInterval() {
+ErrorCode MQTTClient::pingIntervalTimer() {
   if (pingIntervalRemaining == 1) {
     if (pingCount >= 2) {
       pingCount = 0;
@@ -809,9 +809,9 @@ ErrorCode MQTTClient::pingInterval() {
     }
     sendPINGREQ();
     if (pingCount == 0) {
-      pingIntervalRemaining = MQTT_DEFAULT_PING_INTERVAL;
+      pingIntervalRemaining = pingInterval;
     } else {
-      pingIntervalRemaining = MQTT_DEFAULT_PING_RETRY_INTERVAL;
+      pingIntervalRemaining = pingRetryInterval;
     }
     pingCount++;
   } else {
@@ -822,7 +822,7 @@ ErrorCode MQTTClient::pingInterval() {
   return ErrorCode::NONE;
 }
 
-bool MQTTClient::queueInterval() {
+bool MQTTClient::queueIntervalTimer() {
   bool result;
 
   result = PUBLISHQueue.interval();
@@ -833,10 +833,10 @@ bool MQTTClient::queueInterval() {
 }
 
 ErrorCode MQTTClient::intervalTimer() {
-  if (!queueInterval()) {
+  if (!queueIntervalTimer()) {
     return ErrorCode::PACKET_QUEUE_TIMEOUT;
   } else {
-    return pingInterval();
+    return pingIntervalTimer();
   }
 }
 
@@ -964,8 +964,8 @@ bool MQTTClient::sendPUBLISH(MQTTMessage* msg) {
       }
 
       packetid = nextPacketID++;
-      if (nextPacketID >= MQTT_MAX_PACKETID) {
-        nextPacketID = MQTT_MIN_PACKETID;
+      if (nextPacketID >= maxPacketID) {
+        nextPacketID = minPacketID;
       }
 
       #ifdef DEBUG
@@ -995,7 +995,7 @@ bool MQTTClient::sendPUBLISH(MQTTMessage* msg) {
         Serial.println("Adding message to PUBLISHQueue");
         queuedMessage_t* qm = new queuedMessage_t;
         qm->packetid = packetid;
-        qm->timeout = MQTT_PACKET_TIMEOUT;
+        qm->timeout = MQTTMessageQueue::packetTimeout;
         qm->retries = 0;
         qm->message = msg;
         PUBLISHQueue.push(qm);
@@ -1062,7 +1062,7 @@ ErrorCode MQTTClient::recvPUBLISH(const byte flags, const long remainingLength) 
       qm = new queuedMessage_t;
       qm->packetid = packetid;
       qm->retries = 0;
-      qm->timeout = MQTT_PACKET_TIMEOUT;
+      qm->timeout = MQTTMessageQueue::packetTimeout;
       qm->message = msg;
       PUBRECQueue.push(qm);
       sendPUBREC(packetid);
@@ -1219,7 +1219,7 @@ bool MQTTClient::sendPUBREL(const word packetid) {
     if (result) {
       qm = new queuedMessage_t;
       qm->packetid = packetid;
-      qm->timeout  = MQTT_PACKET_TIMEOUT;
+      qm->timeout  = MQTTMessageQueue::packetTimeout;
       qm->retries  = 0;
       qm->message  = NULL;
       PUBRELQueue.push(qm);
@@ -1294,7 +1294,7 @@ ErrorCode MQTTClient::dataAvailable() {
     return ErrorCode::INSUFFICIENT_DATA;
   }
   
-  pingIntervalRemaining = MQTT_DEFAULT_PING_INTERVAL;
+  pingIntervalRemaining = pingInterval;
   pingCount = 0;
 
   switch (packetType) {
