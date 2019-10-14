@@ -712,27 +712,27 @@ bool MQTTClient::connect(const String& clientID, const String& username, const S
   return true;
 }
 
-byte MQTTClient::recvCONNACK() {
+ErrorCode MQTTClient::recvCONNACK() {
   byte b;
   bool sessionPresent = false;
   CONNACKResult returnCode = CONNACKResult::SUCCESS;    // Default return code is success
 
-  if (isConnected) return MQTT_ERROR_ALREADY_CONNECTED;
+  if (isConnected) return ErrorCode::ALREADY_CONNECTED;
 
   int i = stream.read();
   if (i > -1) {
     sessionPresent = (i == 1);
   } else {
-    return MQTT_ERROR_INSUFFICIENT_DATA;
+    return ErrorCode::INSUFFICIENT_DATA;
   }
 
-  if ((b & 0xFE) > 0) return MQTT_ERROR_PACKET_INVALID;
+  if ((b & 0xFE) > 0) return ErrorCode::PACKET_INVALID;
 
   i = stream.read();
   if (i > -1) {
     returnCode = static_cast<CONNACKResult>(i);
   } else {
-    return MQTT_ERROR_INSUFFICIENT_DATA;
+    return ErrorCode::INSUFFICIENT_DATA;
   }
 
   if (returnCode == CONNACKResult::SUCCESS) {
@@ -742,17 +742,17 @@ byte MQTTClient::recvCONNACK() {
     if (!sessionPresent) {
       initSession();
     }
-    return MQTT_ERROR_NONE;
+    return ErrorCode::NONE;
   } else {
     switch (returnCode) {
-      case CONNACKResult::UNACCEPTABLE_PROTOCOL : return MQTT_ERROR_UNACCEPTABLE_PROTOCOL;
-      case CONNACKResult::CLIENTID_REJECTED     : return MQTT_ERROR_CLIENTID_REJECTED;
-      case CONNACKResult::SERVER_UNAVAILABLE    : return MQTT_ERROR_SERVER_UNAVAILABLE;
-      case CONNACKResult::BAD_USERNAME_PASSWORD : return MQTT_ERROR_BAD_USERNAME_PASSWORD;
-      case CONNACKResult::NOT_AUTHORIZED        : return MQTT_ERROR_NOT_AUTHORIZED;
+      case CONNACKResult::UNACCEPTABLE_PROTOCOL : return ErrorCode::UNACCEPTABLE_PROTOCOL;
+      case CONNACKResult::CLIENTID_REJECTED     : return ErrorCode::CLIENTID_REJECTED;
+      case CONNACKResult::SERVER_UNAVAILABLE    : return ErrorCode::SERVER_UNAVAILABLE;
+      case CONNACKResult::BAD_USERNAME_PASSWORD : return ErrorCode::BAD_USERNAME_PASSWORD;
+      case CONNACKResult::NOT_AUTHORIZED        : return ErrorCode::NOT_AUTHORIZED;
     }
   }
-  return MQTT_ERROR_UNKNOWN;
+  return ErrorCode::UNKNOWN;
 }
 
 void MQTTClient::connected() {
@@ -800,12 +800,12 @@ bool MQTTClient::sendPINGREQ() {
   }
 }
 
-byte MQTTClient::pingInterval() {
+ErrorCode MQTTClient::pingInterval() {
   if (pingIntervalRemaining == 1) {
     if (pingCount >= 2) {
       pingCount = 0;
       pingIntervalRemaining = 0;
-      return MQTT_ERROR_NO_PING_RESPONSE;
+      return ErrorCode::NO_PING_RESPONSE;
     }
     sendPINGREQ();
     if (pingCount == 0) {
@@ -819,7 +819,7 @@ byte MQTTClient::pingInterval() {
       pingIntervalRemaining--;
     }
   }
-  return MQTT_ERROR_NONE;
+  return ErrorCode::NONE;
 }
 
 bool MQTTClient::queueInterval() {
@@ -832,9 +832,9 @@ bool MQTTClient::queueInterval() {
   return result;
 }
 
-byte MQTTClient::intervalTimer() {
+ErrorCode MQTTClient::intervalTimer() {
   if (!queueInterval()) {
-    return MQTT_ERROR_PACKET_QUEUE_TIMEOUT;
+    return ErrorCode::PACKET_QUEUE_TIMEOUT;
   } else {
     return pingInterval();
   }
@@ -855,7 +855,7 @@ bool MQTTClient::subscribe(const word packetid, const String& filter, const QoS 
   }
 }
 
-byte MQTTClient::recvSUBACK(const long remainingLength) {
+ErrorCode MQTTClient::recvSUBACK(const long remainingLength) {
   int i;
   byte rc;
   long rl;
@@ -866,7 +866,7 @@ byte MQTTClient::recvSUBACK(const long remainingLength) {
   #endif
 
   if (!isConnected) {
-    return MQTT_ERROR_NOT_CONNECTED;
+    return ErrorCode::NOT_CONNECTED;
   }
 
   if (readWord(&packetid)) {
@@ -877,12 +877,12 @@ byte MQTTClient::recvSUBACK(const long remainingLength) {
         rc = i;
         subscribed(packetid,rc);
       } else {
-        return MQTT_ERROR_PAYLOAD_INVALID;
+        return ErrorCode::PAYLOAD_INVALID;
       }
     }
-    return MQTT_ERROR_NONE;
+    return ErrorCode::NONE;
   } else {
-    return MQTT_ERROR_VARHEADER_INVALID;
+    return ErrorCode::VARHEADER_INVALID;
   }
 }
 
@@ -900,7 +900,7 @@ bool MQTTClient::unsubscribe(const word packetid, const String& filter) {
   }
 }
 
-byte MQTTClient::recvUNSUBACK() {
+ErrorCode MQTTClient::recvUNSUBACK() {
   word packetid;
 
   #ifdef DEBUG
@@ -908,13 +908,13 @@ byte MQTTClient::recvUNSUBACK() {
   #endif
 
   if (!isConnected) {
-    return MQTT_ERROR_NOT_CONNECTED;
+    return ErrorCode::NOT_CONNECTED;
   }
   if (readWord(&packetid)) {
     unsubscribed(packetid);
-    return MQTT_ERROR_NONE;
+    return ErrorCode::NONE;
   } else {
-    return MQTT_ERROR_VARHEADER_INVALID;
+    return ErrorCode::VARHEADER_INVALID;
   }
 }
 
@@ -1012,7 +1012,7 @@ bool MQTTClient::sendPUBLISH(MQTTMessage* msg) {
   } else return false;
 }
 
-byte MQTTClient::recvPUBLISH(const byte flags, const long remainingLength) {
+ErrorCode MQTTClient::recvPUBLISH(const byte flags, const long remainingLength) {
   MQTTMessage* msg;
   queuedMessage_t* qm;
   word packetid=0;
@@ -1029,9 +1029,9 @@ byte MQTTClient::recvPUBLISH(const byte flags, const long remainingLength) {
   msg->retain = (flags & 1) > 0;
   msg->qos = (QoS)((flags & 6) >> 1);
 
-  if (!isConnected) return MQTT_ERROR_NOT_CONNECTED;
+  if (!isConnected) return ErrorCode::NOT_CONNECTED;
 
-  if (!readStr(msg->topic)) return MQTT_ERROR_VARHEADER_INVALID;
+  if (!readStr(msg->topic)) return ErrorCode::VARHEADER_INVALID;
 
   rl = remainingLength - msg->topic.length() - 2;
   
@@ -1039,7 +1039,7 @@ byte MQTTClient::recvPUBLISH(const byte flags, const long remainingLength) {
     if (readWord(&packetid)) {
       rl -= 2;
     } else {
-      return MQTT_ERROR_VARHEADER_INVALID;
+      return ErrorCode::VARHEADER_INVALID;
     }
   }
 
@@ -1067,13 +1067,13 @@ byte MQTTClient::recvPUBLISH(const byte flags, const long remainingLength) {
       PUBRECQueue.push(qm);
       sendPUBREC(packetid);
     }
-    return MQTT_ERROR_NONE;
+    return ErrorCode::NONE;
   } else {
-    return MQTT_ERROR_PAYLOAD_INVALID;
+    return ErrorCode::PAYLOAD_INVALID;
   }
 }
 
-byte MQTTClient::recvPUBACK() {
+ErrorCode MQTTClient::recvPUBACK() {
   word packetid;
   int iterations;
   queuedMessage_t *qm;
@@ -1094,14 +1094,14 @@ byte MQTTClient::recvPUBACK() {
         if (qm->packetid == packetid) {
           delete qm->message;
           free(qm);
-          return MQTT_ERROR_NONE;
+          return ErrorCode::NONE;
         }
         PUBLISHQueue.push(qm);
       } while (--iterations > 0);
     }
-    return MQTT_ERROR_PACKETID_NOT_FOUND;
+    return ErrorCode::PACKETID_NOT_FOUND;
   } else {
-   return MQTT_ERROR_PAYLOAD_INVALID;
+   return ErrorCode::PAYLOAD_INVALID;
   }
 }
 
@@ -1122,7 +1122,7 @@ bool MQTTClient::sendPUBACK(const word packetid) {
   }
 }
 
-byte MQTTClient::recvPUBREC() {
+ErrorCode MQTTClient::recvPUBREC() {
   word packetid;
   int iterations;
   queuedMessage_t *qm;
@@ -1140,17 +1140,17 @@ byte MQTTClient::recvPUBREC() {
           delete qm->message;
           free(qm);
           if (sendPUBREL(packetid)) {
-            return MQTT_ERROR_NONE;
+            return ErrorCode::NONE;
           } else {
-            return MQTT_ERROR_SEND_PUBCOMP_FAILED;
+            return ErrorCode::SEND_PUBCOMP_FAILED;
           }
         }
         PUBRELQueue.push(qm);
        } while (--iterations > 0);
     }
-    return MQTT_ERROR_PACKETID_NOT_FOUND;
+    return ErrorCode::PACKETID_NOT_FOUND;
   } else {
-   return MQTT_ERROR_PAYLOAD_INVALID;
+   return ErrorCode::PAYLOAD_INVALID;
   }
 }
 
@@ -1171,7 +1171,7 @@ bool MQTTClient::sendPUBREC(const word packetid) {
   }
 }
 
-byte MQTTClient::recvPUBREL() {
+ErrorCode MQTTClient::recvPUBREL() {
   word packetid;
   int iterations;
   queuedMessage_t *qm;
@@ -1190,17 +1190,17 @@ byte MQTTClient::recvPUBREL() {
           delete qm->message;
           delete(qm);
           if (sendPUBCOMP(packetid)) {
-            return MQTT_ERROR_NONE;
+            return ErrorCode::NONE;
           } else {
-            return MQTT_ERROR_SEND_PUBCOMP_FAILED;
+            return ErrorCode::SEND_PUBCOMP_FAILED;
           }
         }
         PUBRECQueue.push(qm);
       } while (--iterations > 0);
     }
-    return MQTT_ERROR_PACKETID_NOT_FOUND;
+    return ErrorCode::PACKETID_NOT_FOUND;
   } else {
-   return MQTT_ERROR_PAYLOAD_INVALID;
+   return ErrorCode::PAYLOAD_INVALID;
   }
 }
 
@@ -1230,7 +1230,7 @@ bool MQTTClient::sendPUBREL(const word packetid) {
   }
 }
 
-byte MQTTClient::recvPUBCOMP() {
+ErrorCode MQTTClient::recvPUBCOMP() {
   word packetid;
   int iterations;
   queuedMessage_t *qm;
@@ -1246,14 +1246,14 @@ byte MQTTClient::recvPUBCOMP() {
         qm = PUBRELQueue.pop();
         if (qm->packetid == packetid) {
           delete qm;
-          return MQTT_ERROR_NONE;
+          return ErrorCode::NONE;
         }
         PUBRELQueue.push(qm);
       } while (--iterations > 0);
     }
-    return MQTT_ERROR_PACKETID_NOT_FOUND;
+    return ErrorCode::PACKETID_NOT_FOUND;
   } else {
-   return MQTT_ERROR_PAYLOAD_INVALID;
+   return ErrorCode::PAYLOAD_INVALID;
   }
 }
 
@@ -1274,7 +1274,7 @@ bool MQTTClient::sendPUBCOMP(const word packetid) {
   }
 }
 
-byte MQTTClient::dataAvailable() {
+ErrorCode MQTTClient::dataAvailable() {
   int i;
   byte b;
   byte flags;
@@ -1287,11 +1287,11 @@ byte MQTTClient::dataAvailable() {
     flags = b & 0x0F;
     packetType = static_cast<PacketType>(b >> 4);
   } else {
-    return MQTT_ERROR_INSUFFICIENT_DATA;
+    return ErrorCode::INSUFFICIENT_DATA;
   }
   
   if (!readRemainingLength(&remainingLength)) {
-    return MQTT_ERROR_INSUFFICIENT_DATA;
+    return ErrorCode::INSUFFICIENT_DATA;
   }
   
   pingIntervalRemaining = MQTT_DEFAULT_PING_INTERVAL;
@@ -1303,16 +1303,16 @@ byte MQTTClient::dataAvailable() {
     case PacketType::UNSUBACK  : return recvUNSUBACK(); break;
     case PacketType::PUBLISH   : return recvPUBLISH(flags,remainingLength); break;
     #ifdef DEBUG
-    case PacketType::PINGRESP  : Serial.println("PINGRESP"); return MQTT_ERROR_NONE; break;
+    case PacketType::PINGRESP  : Serial.println("PINGRESP"); return ErrorCode::NONE; break;
     #else
-    case PacketType::PINGRESP  : return MQTT_ERROR_NONE; break;
+    case PacketType::PINGRESP  : return ErrorCode::NONE; break;
     #endif
     case PacketType::PUBACK    : return recvPUBACK(); break;
     case PacketType::PUBREC    : return recvPUBREC(); break;
     case PacketType::PUBREL    : return recvPUBREL(); break;
     case PacketType::PUBCOMP   : return recvPUBCOMP(); break;
-    default: return MQTT_ERROR_UNHANDLED_PACKETTYPE;
+    default: return ErrorCode::UNHANDLED_PACKETTYPE;
   }
 
-  return MQTT_ERROR_NONE;
+  return ErrorCode::NONE;
 }

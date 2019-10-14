@@ -28,37 +28,37 @@
 
 /** @cond */
 
-#define MQTT_ERROR_NONE                           0
-
-#define MQTT_ERROR_ALREADY_CONNECTED            101
-#define MQTT_ERROR_NOT_CONNECTED                102
-#define MQTT_ERROR_INSUFFICIENT_DATA            103
-#define MQTT_ERROR_REMAINING_LENGTH_ENCODING    104
-#define MQTT_ERROR_INVALID_PACKET_FLAGS         105
-#define MQTT_ERROR_PACKET_INVALID               106
-#define MQTT_ERROR_PAYLOAD_INVALID              107
-#define MQTT_ERROR_VARHEADER_INVALID            108
-#define MQTT_ERROR_UNACCEPTABLE_PROTOCOL        109
-#define MQTT_ERROR_CLIENTID_REJECTED            110
-#define MQTT_ERROR_SERVER_UNAVAILABLE           111
-#define MQTT_ERROR_BAD_USERNAME_PASSWORD        112
-#define MQTT_ERROR_NOT_AUTHORIZED               113
-#define MQTT_ERROR_NO_CLIENTID                  114
-#define MQTT_ERROR_WILLMESSAGE_INVALID          115
-#define MQTT_ERROR_NO_PING_RESPONSE             116
-#define MQTT_ERROR_UNHANDLED_PACKETTYPE         117
-#define MQTT_ERROR_NO_SUBSCRIPTION_LIST         118
-#define MQTT_ERROR_INVALID_SUBSCRIPTION_ENTRIES 119
-#define MQTT_ERROR_INVALID_RETURN_CODES         120
-#define MQTT_ERROR_CONNECT_TIMEOUT              121
-#define MQTT_ERROR_NOT_IMPLEMENTED              122
-#define MQTT_ERROR_PACKET_QUEUE_FULL            123
-#define MQTT_ERROR_PACKETID_NOT_FOUND           124
-#define MQTT_ERROR_SEND_PUBCOMP_FAILED          125
-#define MQTT_ERROR_SEND_PUBREL_FAILED           126
-#define MQTT_ERROR_PACKET_QUEUE_TIMEOUT         127
-
-#define MQTT_ERROR_UNKNOWN                      255
+enum class ErrorCode : byte {
+  NONE=0,
+  ALREADY_CONNECTED            = 101,
+  NOT_CONNECTED                = 102,
+  INSUFFICIENT_DATA            = 103,
+  REMAINING_LENGTH_ENCODING    = 104,
+  INVALID_PACKET_FLAGS         = 105,
+  PACKET_INVALID               = 106,
+  PAYLOAD_INVALID              = 107,
+  VARHEADER_INVALID            = 108,
+  UNACCEPTABLE_PROTOCOL        = 109,
+  CLIENTID_REJECTED            = 110,
+  SERVER_UNAVAILABLE           = 111,
+  BAD_USERNAME_PASSWORD        = 112,
+  NOT_AUTHORIZED               = 113,
+  NO_CLIENTID                  = 114,
+  WILLMESSAGE_INVALID          = 115,
+  NO_PING_RESPONSE             = 116,
+  UNHANDLED_PACKETTYPE         = 117,
+  NO_SUBSCRIPTION_LIST         = 118,
+  INVALID_SUBSCRIPTION_ENTRIES = 119,
+  INVALID_RETURN_CODES         = 120,
+  CONNECT_TIMEOUT              = 121,
+  NOT_IMPLEMENTED              = 122,
+  PACKET_QUEUE_FULL            = 123,
+  PACKETID_NOT_FOUND           = 124,
+  SEND_PUBCOMP_FAILED          = 125,
+  SEND_PUBREL_FAILED           = 126,
+  PACKET_QUEUE_TIMEOUT         = 127,
+  UNKNOWN                      = 255
+};
 
 /** @endcond */
 
@@ -396,8 +396,8 @@ class MQTTClient: public MQTTBase {
     bool publish(MQTTMessage& msg) { MQTTMessage* m = new MQTTMessage(msg); return sendPUBLISH(m); }
 
     // Incoming events - Call from your application 
-    byte dataAvailable(); /**< Needs to be called whenever there is data available on the connection */
-    byte intervalTimer(); /**< Needs to be called once every second */
+    ErrorCode dataAvailable(); /**< Needs to be called whenever there is data available on the connection */
+    ErrorCode intervalTimer(); /**< Needs to be called once every second */
   private:
     MQTTPUBLISHQueue  PUBLISHQueue;         /**< Outgoing QOS1 or QOS2 Publish Messages that have not been acknowledged */
     MQTTPUBRECQueue   PUBRECQueue;          /**< Incoming QOS2 messages that have not been acknowledged */
@@ -407,19 +407,17 @@ class MQTTClient: public MQTTBase {
     byte pingCount;
     //
     void reset();
-    byte pingInterval();
+    ErrorCode pingInterval();
     bool queueInterval();
     //
-    byte recvCONNACK();
-    byte recvSUBACK(const long remainingLength);
-    byte recvUNSUBACK();
-    
-    /** @brief    Sends an MQTT publish packet. Do not call directly. */  
-    byte recvPUBLISH(const byte flags, const long remainingLength);
-    byte recvPUBACK();
-    byte recvPUBREC();
-    byte recvPUBREL();
-    byte recvPUBCOMP();
+    ErrorCode recvCONNACK();
+    ErrorCode recvSUBACK(const long remainingLength);
+    ErrorCode recvUNSUBACK();
+    ErrorCode recvPUBLISH(const byte flags, const long remainingLength);
+    ErrorCode recvPUBACK();
+    ErrorCode recvPUBREC();
+    ErrorCode recvPUBREL();
+    ErrorCode recvPUBCOMP();
     //
     bool sendPINGREQ();
     bool sendPUBLISH(MQTTMessage* msg);
