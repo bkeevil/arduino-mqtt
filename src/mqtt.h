@@ -62,25 +62,6 @@
 
 /** @endcond */
 
-/** @brief Used to identify the type of a received packet */
-enum class PacketType : byte {
-  BROKERCONNECT = 0, 
-  CONNECT = 1, 
-  CONNACK = 2, 
-  PUBLISH = 3, 
-  PUBACK = 4,
-  PUBREC = 5, 
-  PUBREL = 6, 
-  PUBCOMP = 7, 
-  SUBSCRIBE = 8, 
-  SUBACK = 9, 
-  UNSUBSCRIBE = 10,
-  UNSUBACK = 11, 
-  PINGREQ = 12, 
-  PINGRESP = 13, 
-  DISCONNECT = 14
-};
-
 /** @brief Quality of Service Levels */
 enum class QoS : byte {
   AT_MOST_ONCE = 0,           /**< The packet is sent once and may or may not be received by the server */
