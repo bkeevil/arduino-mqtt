@@ -62,9 +62,9 @@ String& MQTTTokenizer::getString(String& s) const {
   ptr = first_;
   while (ptr != nullptr) {
     switch (ptr->kind) {
-      case tkSingleLevel: ++size; break;
-      case tkMultiLevel: ++size; break;
-      case tkValid: size += ptr->text.length(); break;
+      case TokenKind::SINGLELEVEL: ++size; break;
+      case TokenKind::MULTILEVEL: ++size; break;
+      case TokenKind::VALID: size += ptr->text.length(); break;
     }    
     ++size;
     ptr = ptr->next;
@@ -76,9 +76,9 @@ String& MQTTTokenizer::getString(String& s) const {
   while (ptr != nullptr) {
   
     switch (ptr->kind) {
-      case tkSingleLevel: s += '+'; break;
-      case tkMultiLevel: s += '#'; break;
-      case tkValid: s += ptr->text; break;
+      case TokenKind::SINGLELEVEL: s += '+'; break;
+      case TokenKind::MULTILEVEL: s += '#'; break;
+      case TokenKind::VALID: s += ptr->text; break;
     }
     if (i < count_ - 1) {
       s += '/';
@@ -127,7 +127,7 @@ bool MQTTTopic::validate() {
 }
 
 /** @brief    Validates a token as a topic name. 
- *            Sets the token kind to tkValid or tkInvalid.
+ *            Sets the token kind to TokenKind::VALID or TokenKind::INVALID.
  *  @param    token   A reference to the token to validate
  *  @remark   Empty string is valid
  *  @remark   Any token containing a hash or a plus is invalid
@@ -135,10 +135,10 @@ bool MQTTTopic::validate() {
  */ 
 bool MQTTTopic::validateToken(MQTTToken& token) {   // TODO: Should token be const?
   if ((token.text.length() == 0) || ((token.text.indexOf('#') == -1) && (token.text.indexOf('+') == -1))) {
-    token.kind = tkValid;
+    token.kind = TokenKind::VALID;
     return true;
   } else {
-    token.kind = tkInvalid;
+    token.kind = TokenKind::INVALID;
     return false;
   }
 }
@@ -171,7 +171,7 @@ bool MQTTFilter::validate() {
 }
 
 /** @brief    Validates a token as a topic name. 
- *            Sets the token kind to tkValid or tkInvalid.
+ *            Sets the token kind to TokenKind::VALID or TokenKind::INVALID.
  *  @param    token   The token to validate
  *  @remark   An empty string is always valid
  *  @remark   Any token not containing a special char is valid
@@ -188,7 +188,7 @@ bool MQTTFilter::validateToken(MQTTToken& token) { // TODO: Should token be cons
   // An empty string is always valid
   len = token.text.length();
   if (len == 0) {
-    token.kind = tkValid;
+    token.kind = TokenKind::VALID;
     return true;
   }
 
@@ -197,24 +197,24 @@ bool MQTTFilter::validateToken(MQTTToken& token) { // TODO: Should token be cons
 
   // Any token not containing a special char is valid
   if ((hashPos == -1) && (plusPos == -1)) {
-    token.kind = tkValid;
+    token.kind = TokenKind::VALID;
     return true;
   }
 
   // The hash and plus character must only appear on their own
   // The hash character must only be in the last in the list of tokens
   if ((hashPos > 0) || (plusPos > 0) || ((hashPos == 0) && (token.next != nullptr))) {
-    token.kind = tkInvalid;
+    token.kind = TokenKind::INVALID;
     return false;
   } 
   
   // Token is valid but set the token kind enum for special chars
   if (hashPos == 0) {
-    token.kind = tkMultiLevel;
+    token.kind = TokenKind::MULTILEVEL;
   } else if (plusPos == 0) {
-    token.kind = tkSingleLevel;
+    token.kind = TokenKind::SINGLELEVEL;
   } else {
-    token.kind = tkValid;
+    token.kind = TokenKind::VALID;
   }
   
   return true;
@@ -237,15 +237,15 @@ bool MQTTFilter::match(const MQTTTopic& topic) const {
 
   while (filterPtr != nullptr) {
     if (i >= topic.count()) {
-      return (result && (filterPtr->kind == TokenKind_t::tkMultiLevel));
+      return (result && (filterPtr->kind == TokenKind::MULTILEVEL));
     }
     
-    if (filterPtr->kind == tkInvalid) { 
+    if (filterPtr->kind == TokenKind::INVALID) { 
       return false;
-    } else if (filterPtr->kind == TokenKind_t::tkValid) {
+    } else if (filterPtr->kind == TokenKind::VALID) {
       result = (filterPtr->text == topicPtr->text);
       if (!result) return result;
-    } else if (filterPtr->kind == tkMultiLevel) {
+    } else if (filterPtr->kind == TokenKind::MULTILEVEL) {
       return true;
     } else {
       result = true;
@@ -264,7 +264,7 @@ bool MQTTFilter::match(const MQTTTopic& topic) const {
       ++i;
       filterPtr = filterPtr->next;
     }
-    result = (result && (filterPtr != nullptr) && filterPtr->kind == tkMultiLevel);
+    result = (result && (filterPtr != nullptr) && filterPtr->kind == TokenKind::MULTILEVEL);
   }
 
   return result;

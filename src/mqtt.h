@@ -82,19 +82,20 @@ enum qos_t {
   qtMAX_VALUE = qtEXACTLY_ONCE
 };
 
-enum TokenKind_t {
-  tkUnknown=0,
-  tkInvalid,
-  tkValid,
-  tkMultiLevel,
-  tkSingleLevel
+/** @brief Classifies a token in a topic name or topic filter */
+enum class TokenKind : byte {
+  UNKNOWN=0,
+  INVALID,
+  VALID,
+  MULTILEVEL,
+  SINGLELEVEL
 };
 
 class MQTTToken {
   public:
-    MQTTToken() : kind(tkUnknown), next(nullptr) {};
+    MQTTToken() : kind(TokenKind::UNKNOWN), next(nullptr) {};
     String text;
-    TokenKind_t kind;
+    TokenKind kind;
     MQTTToken* next;
 };
 
