@@ -197,13 +197,13 @@ class MQTTMessage: public Printable, public Print {
     void seek(int pos) { data_pos = pos; }
 
     /** @brief Returns true if data matches str **/
-    bool equals(const char str[]) const;
+    bool dataEquals(const char str[]) const;
     /** @brief Returns true if data matches str **/
-    bool equals(const String& str) const;
+    bool dataEquals(const String& str) const;
     /** @brief Returns true if data matches str **/
-    bool equalsIgnoreCase(const char str[]) const;
+    bool dataEqualsIgnoreCase(const char str[]) const;
     /** @brief Returns true if data matches str **/
-    bool equalsIgnoreCase(const String& str) const;
+    bool dataEqualsIgnoreCase(const String& str) const;
 
     static const byte messageAllocBlockSize {8};  /**< When writing a message data buffer, this much memory will be allocated at a time */
   private: 

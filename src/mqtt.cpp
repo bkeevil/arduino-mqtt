@@ -347,9 +347,9 @@ void MQTTMessage::pack() {
 
 /** @brief    Returns true if the message data buffer equals str
  *  @param    str   The C string to compare the data buffer with
- *  @remark   For a case insensitive compare see equalsIgnoreCase()
+ *  @remark   For a case insensitive compare see dataEqualsIgnoreCase()
  */
-bool MQTTMessage::equals(const char* str) const {
+bool MQTTMessage::dataEquals(const char* str) const {
   const String s(str);
   String d((char*)data);
   return s.equals(d);
@@ -357,18 +357,18 @@ bool MQTTMessage::equals(const char* str) const {
 
 /** @brief    Returns true if the message data buffer equals str
  *  @param    str   The String object to compare the data buffer with
- *  @remark   For a case insensitive compare see equalsIgnoreCase()
+ *  @remark   For a case insensitive compare see dataEqualsIgnoreCase()
  */
-bool MQTTMessage::equals(const String& str) const {
+bool MQTTMessage::dataEquals(const String& str) const {
   String d((char*)data);
   return str.equals(d);
 }
 
 /** @brief    Returns true if the message data buffer equals str
  *  @param    str   The C string to compare the data buffer with
- *  @remark   For a case sensitive compare see equals()
+ *  @remark   For a case sensitive compare see dataEquals()
  */
-bool MQTTMessage::equalsIgnoreCase(const char* str) const {
+bool MQTTMessage::dataEqualsIgnoreCase(const char* str) const {
   const String s(str);
   String d((char*)data);
   return s.equalsIgnoreCase(d);
@@ -376,9 +376,9 @@ bool MQTTMessage::equalsIgnoreCase(const char* str) const {
 
 /** @brief    Returns true if the message data buffer equals str
  *  @param    str   The String object to compare the data buffer with
- *  @remark   For a case insensitive compare see equals()
+ *  @remark   For a case insensitive compare see dataEquals()
  */
-bool MQTTMessage::equalsIgnoreCase(const String& str) const {
+bool MQTTMessage::dataEqualsIgnoreCase(const String& str) const {
   String d((char*)data);
   return str.equalsIgnoreCase(d);
 }
