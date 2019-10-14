@@ -520,6 +520,31 @@ void MQTTPUBRELQueue::resend(QueuedMessage* qm) {
   client->sendPUBREL(qm->packetid); 
 }
 
+/* SubscriptionList */
+
+void mqtt::SubscriptionList::clear() {
+  Subscription* ptr = top_;
+  while (ptr != nullptr) {
+    top_ = top_->next;
+    delete ptr;
+  }
+}
+
+void mqtt::SubscriptionList::add(const char* filter, QoS qos) {
+  Subscription* ptr = top_;
+  while (ptr != nullptr) {
+    if (ptr->next == nullptr) {
+      ptr->next = new Subscription;
+      strcpy(ptr->next->filter,filter);
+      ptr->next->qos = qos;
+      ptr->next->next = nullptr;
+      ptr = nullptr;
+    } else {
+      ptr = ptr->next;
+    }
+  }
+}
+
 /* MQTTBase */
 
 bool MQTTBase::readRemainingLength(long* value) {
